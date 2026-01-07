@@ -1743,10 +1743,10 @@ with app.app_context():
 
     # Create default admin user if no users exist
     if User.query.count() == 0:
-        from werkzeug.security import generate_password_hash
         default_admin = User(
             username='admin',
-            password_hash=generate_password_hash('admin')
+            password='admin',
+            is_admin=True
         )
         db.session.add(default_admin)
         db.session.commit()
