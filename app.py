@@ -8,6 +8,7 @@ import requests
 import json
 import pytz
 import sqlite3
+import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -58,6 +59,16 @@ login_manager.login_view = 'login'
 # Initialize scheduler
 scheduler = BackgroundScheduler()
 scheduler.start()
+
+# Global sync status tracker
+sync_status = {
+    'running': False,
+    'progress': '',
+    'total_synced': 0,
+    'errors': [],
+    'start_time': None
+}
+sync_status_lock = threading.Lock()
 
 # Add context processor for templates
 @app.context_processor
@@ -1634,10 +1645,8 @@ def sync_data(data_type):
 
     return redirect(url_for('export_home'))
 
-@app.route('/sync/all')
-@login_required
-def sync_all_data():
-    """Sync all data types from Atera"""
+def run_sync_all_background(api_key):
+    """Background worker function to sync all data types"""
     from data_sync import (sync_customers, sync_agents, sync_alerts,
                            sync_contacts, sync_contracts, sync_invoices, sync_tickets,
                            sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
@@ -1646,11 +1655,13 @@ def sync_all_data():
                            sync_ticket_comments, sync_ticket_workhours, sync_agent_patches,
                            sync_custom_field_definitions)
 
-    # Get API key from settings
-    api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
-    if not api_key:
-        flash('Atera API key not configured', 'danger')
-        return redirect(url_for('export_home'))
+    global sync_status
+
+    with sync_status_lock:
+        sync_status['running'] = True
+        sync_status['total_synced'] = 0
+        sync_status['errors'] = []
+        sync_status['start_time'] = datetime.now()
 
     total_synced = 0
     errors = []
@@ -1680,9 +1691,14 @@ def sync_all_data():
     ]
 
     # Execute all syncs
-    for data_type, sync_func in sync_operations:
+    for idx, (data_type, sync_func) in enumerate(sync_operations, 1):
         try:
+            with sync_status_lock:
+                sync_status['progress'] = f"Syncing {data_type} ({idx}/{len(sync_operations)})"
+
+            app.logger.info(f"Starting sync for {data_type}")
             success, count, error = sync_func()
+
             if success:
                 total_synced += count
                 app.logger.info(f"Synced {count} {data_type}")
@@ -1693,15 +1709,60 @@ def sync_all_data():
             errors.append(f"{data_type}: {str(e)}")
             app.logger.error(f"Error syncing {data_type}: {str(e)}")
 
-    # Display results
-    if errors:
-        flash(f'Synced {total_synced} total records with {len(errors)} errors', 'warning')
-        for error in errors[:5]:  # Show first 5 errors
-            flash(f'Error: {error}', 'danger')
-    else:
-        flash(f'Successfully synced {total_synced} total records across all data types!', 'success')
+    # Update final status
+    with sync_status_lock:
+        sync_status['running'] = False
+        sync_status['total_synced'] = total_synced
+        sync_status['errors'] = errors
+        sync_status['progress'] = 'Completed'
 
+    app.logger.info(f"Sync all completed: {total_synced} total records, {len(errors)} errors")
+
+
+@app.route('/sync/all')
+@login_required
+def sync_all_data():
+    """Sync all data types from Atera in background"""
+    global sync_status
+
+    # Check if sync is already running
+    with sync_status_lock:
+        if sync_status['running']:
+            flash('Sync is already running. Please wait for it to complete.', 'warning')
+            return redirect(url_for('export_home'))
+
+    # Get API key from settings
+    api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
+    if not api_key:
+        flash('Atera API key not configured', 'danger')
+        return redirect(url_for('export_home'))
+
+    # Start sync in background thread
+    sync_thread = threading.Thread(
+        target=run_sync_all_background,
+        args=(api_key,),
+        daemon=True
+    )
+    sync_thread.start()
+
+    flash('Sync started in background. This may take several minutes. Check back shortly for results.', 'info')
     return redirect(url_for('export_home'))
+
+
+@app.route('/sync/status')
+@login_required
+def sync_status_endpoint():
+    """Get current sync status as JSON"""
+    global sync_status
+
+    with sync_status_lock:
+        status_copy = sync_status.copy()
+        # Convert datetime to string for JSON serialization
+        if status_copy['start_time']:
+            status_copy['start_time'] = status_copy['start_time'].isoformat()
+
+    return jsonify(status_copy)
+
 
 @app.route('/export/all/<export_format>')
 @login_required
