@@ -193,6 +193,234 @@
             </div>
         </div>
     </div>
+
+    <!-- SNMP Devices -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">SNMP Devices</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.snmp_devices }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='snmp_devices') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='snmp_devices') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='snmp_devices', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='snmp_devices', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='snmp_devices', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TCP Devices -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">TCP Devices</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.tcp_devices }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='tcp_devices') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='tcp_devices') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='tcp_devices', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='tcp_devices', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='tcp_devices', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- HTTP Devices -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">HTTP Devices</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.http_devices }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='http_devices') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='http_devices') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='http_devices', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='http_devices', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='http_devices', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generic Devices -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">Generic Devices</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.generic_devices }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='generic_devices') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='generic_devices') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='generic_devices', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='generic_devices', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='generic_devices', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Knowledge Base -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">Knowledge Base</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.knowledge_base }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='knowledge_base') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='knowledge_base') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='knowledge_base', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='knowledge_base', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='knowledge_base', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Products -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-dark text-white">
+                <h5 class="card-title mb-0">Products</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.products }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='products') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='products') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='products', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='products', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='products', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Expenses -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Expenses</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.expenses }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='expenses') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='expenses') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='expenses', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='expenses', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='expenses', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Departments -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-primary text-white">
+                <h5 class="card-title mb-0">Departments</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.departments }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='departments') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='departments') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='departments', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='departments', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='departments', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Actions -->
+<div class="row mb-4">
+    <div class="col">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">Bulk Operations</h5>
+            </div>
+            <div class="card-body">
+                <p>Sync or export all data types at once</p>
+                <div class="btn-group" role="group">
+                    <a href="{{ url_for('sync_all_data') }}" class="btn btn-success btn-lg">Sync All Data</a>
+                    <a href="{{ url_for('export_all_data', export_format='csv') }}" class="btn btn-outline-primary btn-lg">Export All (CSV)</a>
+                    <a href="{{ url_for('export_all_data', export_format='json') }}" class="btn btn-outline-primary btn-lg">Export All (JSON)</a>
+                    <a href="{{ url_for('export_all_data', export_format='excel') }}" class="btn btn-outline-primary btn-lg">Export All (Excel)</a>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Recent Exports -->

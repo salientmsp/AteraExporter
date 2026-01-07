@@ -1459,6 +1459,139 @@ def sync_data(data_type):
 
     return redirect(url_for('export_home'))
 
+@app.route('/sync/all')
+@login_required
+def sync_all_data():
+    """Sync all data types from Atera"""
+    from data_sync import (sync_customers, sync_agents, sync_alerts,
+                           sync_contacts, sync_contracts, sync_invoices, sync_tickets,
+                           sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
+                           sync_products, sync_expenses, sync_http_devices,
+                           sync_generic_devices, sync_departments)
+
+    # Get API key from settings
+    api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
+    if not api_key:
+        flash('Atera API key not configured', 'danger')
+        return redirect(url_for('export_home'))
+
+    total_synced = 0
+    errors = []
+
+    # Define all sync operations
+    sync_operations = [
+        ('customers', lambda: sync_customers(db, Customer, api_key)),
+        ('agents', lambda: sync_agents(db, Agent, api_key)),
+        ('alerts', lambda: sync_alerts(db, Alert, api_key)),
+        ('contacts', lambda: sync_contacts(db, Contact, api_key)),
+        ('contracts', lambda: sync_contracts(db, Contract, api_key)),
+        ('invoices', lambda: sync_invoices(db, Invoice, api_key)),
+        ('tickets', lambda: sync_tickets(db, Ticket, api_key)),
+        ('snmp_devices', lambda: sync_snmp_devices(db, SNMPDevice, api_key)),
+        ('tcp_devices', lambda: sync_tcp_devices(db, TCPDevice, api_key)),
+        ('http_devices', lambda: sync_http_devices(db, HTTPDevice, api_key)),
+        ('generic_devices', lambda: sync_generic_devices(db, GenericDevice, api_key)),
+        ('knowledge_base', lambda: sync_knowledge_base(db, KnowledgeBase, api_key)),
+        ('products', lambda: sync_products(db, Product, api_key)),
+        ('expenses', lambda: sync_expenses(db, Expense, api_key)),
+        ('departments', lambda: sync_departments(db, Department, api_key))
+    ]
+
+    # Execute all syncs
+    for data_type, sync_func in sync_operations:
+        try:
+            success, count, error = sync_func()
+            if success:
+                total_synced += count
+                app.logger.info(f"Synced {count} {data_type}")
+            else:
+                errors.append(f"{data_type}: {error}")
+                app.logger.error(f"Failed to sync {data_type}: {error}")
+        except Exception as e:
+            errors.append(f"{data_type}: {str(e)}")
+            app.logger.error(f"Error syncing {data_type}: {str(e)}")
+
+    # Display results
+    if errors:
+        flash(f'Synced {total_synced} total records with {len(errors)} errors', 'warning')
+        for error in errors[:5]:  # Show first 5 errors
+            flash(f'Error: {error}', 'danger')
+    else:
+        flash(f'Successfully synced {total_synced} total records across all data types!', 'success')
+
+    return redirect(url_for('export_home'))
+
+@app.route('/export/all/<export_format>')
+@login_required
+def export_all_data(export_format):
+    """Export all data types in a ZIP file"""
+    from export_utils import export_models
+    import zipfile
+    from io import BytesIO
+
+    try:
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Define all data types
+            exports = [
+                ('customers', Customer.query.all()),
+                ('agents', Agent.query.all()),
+                ('alerts', Alert.query.all()),
+                ('contacts', Contact.query.all()),
+                ('contracts', Contract.query.all()),
+                ('invoices', Invoice.query.all()),
+                ('tickets', Ticket.query.all()),
+                ('snmp_devices', SNMPDevice.query.all()),
+                ('tcp_devices', TCPDevice.query.all()),
+                ('http_devices', HTTPDevice.query.all()),
+                ('generic_devices', GenericDevice.query.all()),
+                ('knowledge_base', KnowledgeBase.query.all()),
+                ('products', Product.query.all()),
+                ('expenses', Expense.query.all()),
+                ('departments', Department.query.all())
+            ]
+
+            total_exported = 0
+            for data_type, data in exports:
+                if data:
+                    bytes_buffer, filename, count, error = export_models(data, data_type, export_format, exclude_fields=['id'])
+                    if bytes_buffer:
+                        zip_file.writestr(filename, bytes_buffer.read())
+                        total_exported += count
+                        app.logger.info(f"Added {data_type} to ZIP: {count} records")
+
+        # Prepare ZIP for download
+        zip_buffer.seek(0)
+
+        # Log the bulk export
+        export_log = ExportLog(
+            export_type='all',
+            export_format=export_format,
+            file_path=f'all_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip',
+            record_count=total_exported,
+            status='success',
+            error_message=None,
+            created_by=current_user.username,
+            created_at=datetime.now()
+        )
+        db.session.add(export_log)
+        db.session.commit()
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'atera_all_data_{timestamp}.zip'
+        )
+
+    except Exception as e:
+        app.logger.error(f"Error exporting all data: {str(e)}")
+        flash(f'Error exporting all data: {str(e)}', 'danger')
+        return redirect(url_for('export_home'))
+
 @app.route('/export/<data_type>/<export_format>')
 @login_required
 def export_data(data_type, export_format):
@@ -1604,9 +1737,26 @@ def view_data(data_type):
         flash(f'Error viewing {data_type}: {str(e)}', 'danger')
         return redirect(url_for('export_home'))
 
-# Create database tables
+# Create database tables and default admin user
 with app.app_context():
     db.create_all()
+
+    # Create default admin user if no users exist
+    if User.query.count() == 0:
+        from werkzeug.security import generate_password_hash
+        default_admin = User(
+            username='admin',
+            password_hash=generate_password_hash('admin')
+        )
+        db.session.add(default_admin)
+        db.session.commit()
+        app.logger.info("Created default admin user (username: admin, password: admin)")
+        print("=" * 60)
+        print("DEFAULT ADMIN USER CREATED")
+        print("Username: admin")
+        print("Password: admin")
+        print("PLEASE CHANGE THE PASSWORD AFTER FIRST LOGIN!")
+        print("=" * 60)
 
 if __name__ == '__main__':
     app.run(debug=True)
