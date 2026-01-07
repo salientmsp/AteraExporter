@@ -922,3 +922,251 @@ def sync_departments(db, Department, api_key):
         logger.error(f"Error syncing departments: {str(e)}")
         db.session.rollback()
         return False, 0, str(e)
+
+
+def sync_account(db, Account, api_key):
+    """Sync account information from Atera API"""
+    try:
+        client = AteraAPIClient(api_key)
+        account_data = client.fetch_account()
+
+        if account_data is None:
+            return False, 0, "Failed to fetch account from Atera API"
+
+        # Update or create single account record
+        account = Account.query.first()
+        if account:
+            account.account_id = account_data.get('AccountID', '')
+            account.country = account_data.get('Country', '')
+            account.company_name = account_data.get('CompanyName', '')
+            account.created_on = parse_atera_datetime(account_data.get('CreatedOn'))
+            account.state = account_data.get('State', '')
+            account.timezone_name = account_data.get('TimeZoneName', '')
+            account.city = account_data.get('City', '')
+            account.address = account_data.get('Address', '')
+            account.postal_code = account_data.get('PostalCode', '')
+            account.phone = account_data.get('Phone', '')
+            account.is_it_department = account_data.get('IsITDepartment', False)
+            account.plan = account_data.get('Plan', '')
+            account.synced_at = datetime.now()
+        else:
+            account = Account(
+                account_id=account_data.get('AccountID', ''),
+                country=account_data.get('Country', ''),
+                company_name=account_data.get('CompanyName', ''),
+                created_on=parse_atera_datetime(account_data.get('CreatedOn')),
+                state=account_data.get('State', ''),
+                timezone_name=account_data.get('TimeZoneName', ''),
+                city=account_data.get('City', ''),
+                address=account_data.get('Address', ''),
+                postal_code=account_data.get('PostalCode', ''),
+                phone=account_data.get('Phone', ''),
+                is_it_department=account_data.get('IsITDepartment', False),
+                plan=account_data.get('Plan', ''),
+                synced_at=datetime.now()
+            )
+            db.session.add(account)
+
+        db.session.commit()
+        logger.info("Successfully synced account information")
+        return True, 1, None
+    except Exception as e:
+        logger.error(f"Error syncing account: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_ticket_comments(db, TicketComment, Ticket, api_key):
+    """Sync all ticket comments from Atera API"""
+    try:
+        client = AteraAPIClient(api_key)
+
+        # Delete existing comments to avoid duplicates
+        TicketComment.query.delete()
+
+        # Get all tickets
+        tickets = Ticket.query.all()
+        total_comments = 0
+
+        for ticket in tickets:
+            try:
+                comments_data = client.fetch_ticket_comments(ticket.ticket_id)
+
+                if comments_data:
+                    for comment_data in comments_data:
+                        comment = TicketComment(
+                            ticket_id=ticket.ticket_id,
+                            comment_date=parse_atera_datetime(comment_data.get('Date')),
+                            comment_text=comment_data.get('Comment', ''),
+                            end_user_id=str(comment_data.get('EndUserID', '')),
+                            technician_contact_id=str(comment_data.get('TechnicianContactID', '')),
+                            email=comment_data.get('Email', ''),
+                            first_name=comment_data.get('FirstName', ''),
+                            last_name=comment_data.get('LastName', ''),
+                            is_internal=comment_data.get('IsInternal', False),
+                            synced_at=datetime.now()
+                        )
+                        db.session.add(comment)
+                        total_comments += 1
+            except Exception as e:
+                logger.error(f"Error syncing comments for ticket {ticket.ticket_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {total_comments} ticket comments across {len(tickets)} tickets")
+        return True, total_comments, None
+
+    except Exception as e:
+        logger.error(f"Error syncing ticket comments: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key):
+    """Sync all ticket work hours from Atera API"""
+    try:
+        client = AteraAPIClient(api_key)
+
+        # Delete existing work hours to avoid duplicates
+        TicketWorkHour.query.delete()
+
+        # Get all tickets
+        tickets = Ticket.query.all()
+        total_hours = 0
+
+        for ticket in tickets:
+            try:
+                workhours_data = client.fetch_ticket_workhours(ticket.ticket_id)
+
+                if workhours_data:
+                    for workhour_data in workhours_data:
+                        workhour = TicketWorkHour(
+                            ticket_id=ticket.ticket_id,
+                            work_hours_id=str(workhour_data.get('WorkHoursID', '')),
+                            start_work_hour=parse_atera_datetime(workhour_data.get('StartWorkHour')),
+                            end_work_hour=parse_atera_datetime(workhour_data.get('EndWorkHour')),
+                            technician_contact_id=str(workhour_data.get('TechnicianContactID', '')),
+                            billable=workhour_data.get('Billiable', False),  # Note: API has typo 'Billiable'
+                            on_customer_site=workhour_data.get('OnCustomerSite', False),
+                            description=workhour_data.get('Description', ''),
+                            technician_full_name=workhour_data.get('TechnicianFullName', ''),
+                            technician_email=workhour_data.get('TechnicianEmail', ''),
+                            rate_id=workhour_data.get('RateID'),
+                            rate_amount=workhour_data.get('RateAmount'),
+                            synced_at=datetime.now()
+                        )
+                        db.session.add(workhour)
+                        total_hours += 1
+            except Exception as e:
+                logger.error(f"Error syncing work hours for ticket {ticket.ticket_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {total_hours} work hour records across {len(tickets)} tickets")
+        return True, total_hours, None
+
+    except Exception as e:
+        logger.error(f"Error syncing ticket work hours: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_key):
+    """Sync agent patch information from Atera API"""
+    try:
+        client = AteraAPIClient(api_key)
+
+        # Delete existing patches to avoid duplicates
+        AgentInstalledPatch.query.delete()
+        AgentAvailablePatch.query.delete()
+
+        # Get all agents
+        agents = Agent.query.all()
+        total_installed = 0
+        total_available = 0
+
+        for agent in agents:
+            try:
+                # Fetch installed patches
+                installed_patches = client.fetch_agent_installed_patches(agent.device_guid)
+                if installed_patches:
+                    for patch_data in installed_patches:
+                        patch = AgentInstalledPatch(
+                            device_guid=agent.device_guid,
+                            agent_id=str(agent.agent_id),
+                            name=patch_data.get('Name', ''),
+                            patch_class=patch_data.get('Class', ''),
+                            kb_id=patch_data.get('KBId', ''),
+                            install_date=parse_atera_datetime(patch_data.get('InstallDate')),
+                            synced_at=datetime.now()
+                        )
+                        db.session.add(patch)
+                        total_installed += 1
+
+                # Fetch available patches
+                available_patches = client.fetch_agent_available_patches(agent.device_guid)
+                if available_patches:
+                    for patch_data in available_patches:
+                        patch = AgentAvailablePatch(
+                            device_guid=agent.device_guid,
+                            agent_id=str(agent.agent_id),
+                            name=patch_data.get('Name', ''),
+                            patch_class=patch_data.get('Class', ''),
+                            kb_id=patch_data.get('KBId', ''),
+                            status=patch_data.get('Status', ''),
+                            synced_at=datetime.now()
+                        )
+                        db.session.add(patch)
+                        total_available += 1
+
+            except Exception as e:
+                logger.error(f"Error syncing patches for agent {agent.device_guid}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {total_installed} installed patches and {total_available} available patches across {len(agents)} agents")
+        return True, total_installed + total_available, None
+
+    except Exception as e:
+        logger.error(f"Error syncing agent patches: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_custom_field_definitions(db, CustomFieldDefinition, api_key):
+    """Sync custom field definitions from Atera API"""
+    try:
+        client = AteraAPIClient(api_key)
+        fields_data = client.fetch_custom_field_definitions()
+
+        if fields_data is None:
+            return False, 0, "Failed to fetch custom field definitions from Atera API"
+
+        # Delete existing definitions
+        CustomFieldDefinition.query.delete()
+
+        count = 0
+        for field_data in fields_data:
+            try:
+                import json
+                field = CustomFieldDefinition(
+                    field_name=field_data.get('Name', ''),
+                    data_type=field_data.get('DataType', ''),
+                    target=field_data.get('Target', ''),
+                    possible_values=json.dumps(field_data.get('PossibleValues', [])),
+                    synced_at=datetime.now()
+                )
+                db.session.add(field)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing custom field definition: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} custom field definitions")
+        return True, count, None
+
+    except Exception as e:
+        logger.error(f"Error syncing custom field definitions: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)

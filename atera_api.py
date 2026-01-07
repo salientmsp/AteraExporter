@@ -212,6 +212,42 @@ class AteraAPIClient:
         logger.info("Fetching departments from Atera")
         return self._fetch_paginated('/departments')
 
+    def fetch_account(self):
+        """Fetch account information from Atera"""
+        logger.info("Fetching account information from Atera")
+        return self._make_request('/account')
+
+    def fetch_ticket_comments(self, ticket_id):
+        """Fetch comments for a specific ticket"""
+        logger.info(f"Fetching comments for ticket {ticket_id}")
+        return self._fetch_paginated(f'/tickets/{ticket_id}/comments')
+
+    def fetch_ticket_workhours(self, ticket_id):
+        """Fetch work hours for a specific ticket"""
+        logger.info(f"Fetching work hours for ticket {ticket_id}")
+        return self._fetch_paginated(f'/tickets/{ticket_id}/workhoursrecords')
+
+    def fetch_agent_installed_patches(self, device_guid):
+        """Fetch installed patches for an agent"""
+        logger.info(f"Fetching installed patches for agent {device_guid}")
+        result = self._make_request(f'/agents/{device_guid}/installed-patches')
+        if result and 'InstalledUpdates' in result:
+            return result['InstalledUpdates']
+        return []
+
+    def fetch_agent_available_patches(self, device_guid):
+        """Fetch available patches for an agent"""
+        logger.info(f"Fetching available patches for agent {device_guid}")
+        result = self._make_request(f'/agents/{device_guid}/available-patches')
+        if result and 'AvailableUpdates' in result:
+            return result['AvailableUpdates']
+        return []
+
+    def fetch_custom_field_definitions(self):
+        """Fetch custom field definitions"""
+        logger.info("Fetching custom field definitions from Atera")
+        return self._make_request('/customvalues/customfields')
+
 
 def parse_atera_datetime(date_string):
     """

@@ -308,6 +308,79 @@ class Department(db.Model):
     created_at = db.Column(db.DateTime)
     synced_at = db.Column(db.DateTime, default=datetime.now)
 
+class Account(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.String(100), unique=True)
+    country = db.Column(db.String(100))
+    company_name = db.Column(db.String(200))
+    created_on = db.Column(db.DateTime)
+    state = db.Column(db.String(100))
+    timezone_name = db.Column(db.String(100))
+    city = db.Column(db.String(100))
+    address = db.Column(db.String(200))
+    postal_code = db.Column(db.String(20))
+    phone = db.Column(db.String(50))
+    is_it_department = db.Column(db.Boolean)
+    plan = db.Column(db.String(100))
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class TicketComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.String(50), nullable=False)
+    comment_date = db.Column(db.DateTime)
+    comment_text = db.Column(db.Text)
+    end_user_id = db.Column(db.String(50))
+    technician_contact_id = db.Column(db.String(50))
+    email = db.Column(db.String(200))
+    first_name = db.Column(db.String(100))
+    last_name = db.Column(db.String(100))
+    is_internal = db.Column(db.Boolean)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class TicketWorkHour(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.String(50), nullable=False)
+    work_hours_id = db.Column(db.String(50))
+    start_work_hour = db.Column(db.DateTime)
+    end_work_hour = db.Column(db.DateTime)
+    technician_contact_id = db.Column(db.String(50))
+    billable = db.Column(db.Boolean)
+    on_customer_site = db.Column(db.Boolean)
+    description = db.Column(db.Text)
+    technician_full_name = db.Column(db.String(200))
+    technician_email = db.Column(db.String(200))
+    rate_id = db.Column(db.Integer)
+    rate_amount = db.Column(db.Float)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class AgentInstalledPatch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_guid = db.Column(db.String(100), nullable=False)
+    agent_id = db.Column(db.String(50))
+    name = db.Column(db.String(200))
+    patch_class = db.Column(db.String(100))
+    kb_id = db.Column(db.String(50))
+    install_date = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class AgentAvailablePatch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_guid = db.Column(db.String(100), nullable=False)
+    agent_id = db.Column(db.String(50))
+    name = db.Column(db.String(200))
+    patch_class = db.Column(db.String(100))
+    kb_id = db.Column(db.String(50))
+    status = db.Column(db.String(50))
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class CustomFieldDefinition(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    field_name = db.Column(db.String(200), unique=True)
+    data_type = db.Column(db.String(50))  # Text, Boolean, Numeric, Date, Options
+    target = db.Column(db.String(50))  # Customer, Ticket, Contact, etc.
+    possible_values = db.Column(db.Text)  # JSON array for options
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
 class ExportLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     export_type = db.Column(db.String(50), nullable=False)  # tickets, customers, agents, etc.
