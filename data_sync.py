@@ -107,34 +107,108 @@ def sync_agents(db, Agent, api_key):
                 existing = Agent.query.filter_by(agent_id=agent_id).first()
 
                 if existing:
+                    existing.device_guid = agent_data.get('DeviceGuid', '')
                     existing.machine_name = agent_data.get('MachineName', '')
+                    existing.system_name = agent_data.get('SystemName', '')
                     existing.customer_id = str(agent_data.get('CustomerID', ''))
                     existing.customer_name = agent_data.get('CustomerName', '')
+                    existing.folder_id = str(agent_data.get('FolderID', ''))
+                    existing.folder_name = agent_data.get('FolderName', '')
                     existing.domain_name = agent_data.get('DomainName', '')
                     existing.operating_system = agent_data.get('OperatingSystem', '')
+                    existing.os_version = agent_data.get('OSVersion', '')
+                    existing.os_build = agent_data.get('OSBuild', '')
                     existing.ip_address = agent_data.get('IPAddress', '')
+                    # Convert MacAddresses array to JSON string
+                    mac_addrs = agent_data.get('MacAddresses', [])
+                    existing.mac_addresses = json.dumps(mac_addrs) if mac_addrs else None
                     existing.last_login_user = agent_data.get('LastLoginUser', '')
                     existing.antivirus_status = agent_data.get('AntivirusStatus', '')
                     existing.agent_version = agent_data.get('AgentVersion', '')
                     existing.online = agent_data.get('Online', False)
+                    existing.monitored = agent_data.get('Monitored', False)
+                    existing.favorite = agent_data.get('Favorite', False)
+                    # Hardware details
+                    existing.processor = agent_data.get('Processor', '')
+                    existing.processor_cores_count = agent_data.get('ProcessorCoresCount', 0)
+                    existing.memory = agent_data.get('Memory', 0)
+                    existing.motherboard = agent_data.get('Motherboard', '')
+                    existing.display = agent_data.get('Display', '')
+                    existing.sound = agent_data.get('Sound', '')
+                    # Vendor information
+                    existing.vendor = agent_data.get('Vendor', '')
+                    existing.vendor_serial_number = agent_data.get('VendorSerialNumber', '')
+                    existing.vendor_brand_model = agent_data.get('VendorBrandModel', '')
+                    existing.product_name = agent_data.get('ProductName', '')
+                    # BIOS information
+                    existing.bios_manufacturer = agent_data.get('BiosManufacturer', '')
+                    existing.bios_version = agent_data.get('BiosVersion', '')
+                    existing.bios_release_date = parse_atera_datetime(agent_data.get('BiosReleaseDate'))
+                    # Software
+                    existing.office = agent_data.get('Office', '')
+                    existing.office_full_version = agent_data.get('OfficeFullVersion', '')
+                    # Monitoring
+                    existing.threshold_id = str(agent_data.get('ThresholdID', ''))
+                    existing.reported_from_ip = agent_data.get('ReportedFromIP', '')
+                    existing.device_type = agent_data.get('DeviceType', '')
+                    # Timestamps
                     existing.created_at = parse_atera_datetime(agent_data.get('CreatedOn'))
+                    existing.modified = parse_atera_datetime(agent_data.get('Modified'))
                     existing.last_seen = parse_atera_datetime(agent_data.get('LastSeen'))
+                    existing.last_reboot_time = parse_atera_datetime(agent_data.get('LastRebootTime'))
                     existing.synced_at = datetime.now()
                 else:
+                    # Convert MacAddresses array to JSON string
+                    mac_addrs = agent_data.get('MacAddresses', [])
                     agent = Agent(
                         agent_id=agent_id,
+                        device_guid=agent_data.get('DeviceGuid', ''),
                         machine_name=agent_data.get('MachineName', ''),
+                        system_name=agent_data.get('SystemName', ''),
                         customer_id=str(agent_data.get('CustomerID', '')),
                         customer_name=agent_data.get('CustomerName', ''),
+                        folder_id=str(agent_data.get('FolderID', '')),
+                        folder_name=agent_data.get('FolderName', ''),
                         domain_name=agent_data.get('DomainName', ''),
                         operating_system=agent_data.get('OperatingSystem', ''),
+                        os_version=agent_data.get('OSVersion', ''),
+                        os_build=agent_data.get('OSBuild', ''),
                         ip_address=agent_data.get('IPAddress', ''),
+                        mac_addresses=json.dumps(mac_addrs) if mac_addrs else None,
                         last_login_user=agent_data.get('LastLoginUser', ''),
                         antivirus_status=agent_data.get('AntivirusStatus', ''),
                         agent_version=agent_data.get('AgentVersion', ''),
                         online=agent_data.get('Online', False),
+                        monitored=agent_data.get('Monitored', False),
+                        favorite=agent_data.get('Favorite', False),
+                        # Hardware details
+                        processor=agent_data.get('Processor', ''),
+                        processor_cores_count=agent_data.get('ProcessorCoresCount', 0),
+                        memory=agent_data.get('Memory', 0),
+                        motherboard=agent_data.get('Motherboard', ''),
+                        display=agent_data.get('Display', ''),
+                        sound=agent_data.get('Sound', ''),
+                        # Vendor information
+                        vendor=agent_data.get('Vendor', ''),
+                        vendor_serial_number=agent_data.get('VendorSerialNumber', ''),
+                        vendor_brand_model=agent_data.get('VendorBrandModel', ''),
+                        product_name=agent_data.get('ProductName', ''),
+                        # BIOS information
+                        bios_manufacturer=agent_data.get('BiosManufacturer', ''),
+                        bios_version=agent_data.get('BiosVersion', ''),
+                        bios_release_date=parse_atera_datetime(agent_data.get('BiosReleaseDate')),
+                        # Software
+                        office=agent_data.get('Office', ''),
+                        office_full_version=agent_data.get('OfficeFullVersion', ''),
+                        # Monitoring
+                        threshold_id=str(agent_data.get('ThresholdID', '')),
+                        reported_from_ip=agent_data.get('ReportedFromIP', ''),
+                        device_type=agent_data.get('DeviceType', ''),
+                        # Timestamps
                         created_at=parse_atera_datetime(agent_data.get('CreatedOn')),
+                        modified=parse_atera_datetime(agent_data.get('Modified')),
                         last_seen=parse_atera_datetime(agent_data.get('LastSeen')),
+                        last_reboot_time=parse_atera_datetime(agent_data.get('LastRebootTime')),
                         synced_at=datetime.now()
                     )
                     db.session.add(agent)
@@ -182,7 +256,16 @@ def sync_alerts(db, Alert, api_key):
                     existing.archived = alert_data.get('Archived', False)
                     existing.created_at = parse_atera_datetime(alert_data.get('Created'))
                     existing.threshold_value = alert_data.get('ThresholdValue', '')
+                    existing.threshold_value2 = alert_data.get('ThresholdValue2', '')
+                    existing.threshold_value3 = alert_data.get('ThresholdValue3', '')
+                    existing.threshold_value4 = alert_data.get('ThresholdValue4', '')
+                    existing.threshold_value5 = alert_data.get('ThresholdValue5', '')
                     existing.additional_info = alert_data.get('AdditionalInfo', '')
+                    existing.code = alert_data.get('Code', '')
+                    existing.snoozed_end_date = parse_atera_datetime(alert_data.get('SnoozedEndDate'))
+                    existing.archived_date = parse_atera_datetime(alert_data.get('ArchivedDate'))
+                    existing.folder_id = str(alert_data.get('FolderID', ''))
+                    existing.polling_cycles_count = alert_data.get('PollingCyclesCount', 0)
                     existing.synced_at = datetime.now()
                 else:
                     alert = Alert(
@@ -197,7 +280,16 @@ def sync_alerts(db, Alert, api_key):
                         archived=alert_data.get('Archived', False),
                         created_at=parse_atera_datetime(alert_data.get('Created')),
                         threshold_value=alert_data.get('ThresholdValue', ''),
+                        threshold_value2=alert_data.get('ThresholdValue2', ''),
+                        threshold_value3=alert_data.get('ThresholdValue3', ''),
+                        threshold_value4=alert_data.get('ThresholdValue4', ''),
+                        threshold_value5=alert_data.get('ThresholdValue5', ''),
                         additional_info=alert_data.get('AdditionalInfo', ''),
+                        code=alert_data.get('Code', ''),
+                        snoozed_end_date=parse_atera_datetime(alert_data.get('SnoozedEndDate')),
+                        archived_date=parse_atera_datetime(alert_data.get('ArchivedDate')),
+                        folder_id=str(alert_data.get('FolderID', '')),
+                        polling_cycles_count=alert_data.get('PollingCyclesCount', 0),
                         synced_at=datetime.now()
                     )
                     db.session.add(alert)
@@ -469,6 +561,20 @@ def sync_tickets(db, Ticket, api_key):
                     existing.end_user_lastname = ticket_data.get('LastName', '')
                     existing.end_user_email = ticket_data.get('EndUserEmail', '')
                     existing.end_user_phone = ticket_data.get('EndUserPhone', '')
+                    # Additional timing fields
+                    existing.technician_first_comment_date = parse_atera_datetime(ticket_data.get('TechnicianFirstCommentDate'))
+                    existing.first_response_due_date = parse_atera_datetime(ticket_data.get('FirstResponseDueDate'))
+                    existing.closed_ticket_due_date = parse_atera_datetime(ticket_data.get('ClosedTicketDueDate'))
+                    # Comment tracking
+                    existing.first_comment = ticket_data.get('FirstComment', '')
+                    existing.last_end_user_comment_timestamp = parse_atera_datetime(ticket_data.get('LastEndUserCommentTimestamp'))
+                    existing.last_technician_comment_timestamp = parse_atera_datetime(ticket_data.get('LastTechnicianCommentTimestamp'))
+                    # Related information
+                    existing.customer_business_number = ticket_data.get('CustomerBusinessNumber', '')
+                    existing.technician_full_name = ticket_data.get('TechnicianFullName', '')
+                    existing.technician_email = ticket_data.get('TechnicianEmail', '')
+                    existing.contract_id = str(ticket_data.get('ContractID', ''))
+                    existing.synced_at = datetime.now()
                 else:
                     ticket = Ticket(
                         ticket_id=ticket_id,
@@ -490,7 +596,21 @@ def sync_tickets(db, Ticket, api_key):
                         end_user_lastname=ticket_data.get('LastName', ''),
                         end_user_email=ticket_data.get('EndUserEmail', ''),
                         end_user_phone=ticket_data.get('EndUserPhone', ''),
-                        notified=False
+                        notified=False,
+                        # Additional timing fields
+                        technician_first_comment_date=parse_atera_datetime(ticket_data.get('TechnicianFirstCommentDate')),
+                        first_response_due_date=parse_atera_datetime(ticket_data.get('FirstResponseDueDate')),
+                        closed_ticket_due_date=parse_atera_datetime(ticket_data.get('ClosedTicketDueDate')),
+                        # Comment tracking
+                        first_comment=ticket_data.get('FirstComment', ''),
+                        last_end_user_comment_timestamp=parse_atera_datetime(ticket_data.get('LastEndUserCommentTimestamp')),
+                        last_technician_comment_timestamp=parse_atera_datetime(ticket_data.get('LastTechnicianCommentTimestamp')),
+                        # Related information
+                        customer_business_number=ticket_data.get('CustomerBusinessNumber', ''),
+                        technician_full_name=ticket_data.get('TechnicianFullName', ''),
+                        technician_email=ticket_data.get('TechnicianEmail', ''),
+                        contract_id=str(ticket_data.get('ContractID', '')),
+                        synced_at=datetime.now()
                     )
                     db.session.add(ticket)
 

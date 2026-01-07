@@ -96,6 +96,20 @@ class Ticket(db.Model):
     end_user_email = db.Column(db.String(200))
     end_user_phone = db.Column(db.String(50))
     notified = db.Column(db.Boolean, default=False)
+    # Additional timing fields
+    technician_first_comment_date = db.Column(db.DateTime)
+    first_response_due_date = db.Column(db.DateTime)
+    closed_ticket_due_date = db.Column(db.DateTime)
+    # Comment tracking
+    first_comment = db.Column(db.Text)
+    last_end_user_comment_timestamp = db.Column(db.DateTime)
+    last_technician_comment_timestamp = db.Column(db.DateTime)
+    # Related information
+    customer_business_number = db.Column(db.String(100))
+    technician_full_name = db.Column(db.String(200))
+    technician_email = db.Column(db.String(200))
+    contract_id = db.Column(db.String(50))
+    synced_at = db.Column(db.DateTime, default=datetime.now)
 
 class SystemSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -131,18 +145,53 @@ class Customer(db.Model):
 class Agent(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     agent_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_guid = db.Column(db.String(100))
     machine_name = db.Column(db.String(200))
+    system_name = db.Column(db.String(200))
     customer_id = db.Column(db.String(50))
     customer_name = db.Column(db.String(200))
+    folder_id = db.Column(db.String(50))
+    folder_name = db.Column(db.String(200))
     domain_name = db.Column(db.String(200))
     operating_system = db.Column(db.String(200))
+    os_version = db.Column(db.String(100))
+    os_build = db.Column(db.String(100))
     ip_address = db.Column(db.String(50))
+    mac_addresses = db.Column(db.Text)  # JSON array
     last_login_user = db.Column(db.String(100))
     antivirus_status = db.Column(db.String(50))
     agent_version = db.Column(db.String(50))
     online = db.Column(db.Boolean)
+    monitored = db.Column(db.Boolean)
+    favorite = db.Column(db.Boolean)
+    # Hardware details
+    processor = db.Column(db.String(200))
+    processor_cores_count = db.Column(db.Integer)
+    memory = db.Column(db.Integer)
+    motherboard = db.Column(db.String(200))
+    display = db.Column(db.String(200))
+    sound = db.Column(db.String(200))
+    # Vendor information
+    vendor = db.Column(db.String(100))
+    vendor_serial_number = db.Column(db.String(100))
+    vendor_brand_model = db.Column(db.String(200))
+    product_name = db.Column(db.String(200))
+    # BIOS information
+    bios_manufacturer = db.Column(db.String(100))
+    bios_version = db.Column(db.String(100))
+    bios_release_date = db.Column(db.DateTime)
+    # Software
+    office = db.Column(db.String(200))
+    office_full_version = db.Column(db.String(100))
+    # Monitoring
+    threshold_id = db.Column(db.String(50))
+    reported_from_ip = db.Column(db.String(50))
+    device_type = db.Column(db.String(50))
+    # Timestamps
     created_at = db.Column(db.DateTime)
+    modified = db.Column(db.DateTime)
     last_seen = db.Column(db.DateTime)
+    last_reboot_time = db.Column(db.DateTime)
     synced_at = db.Column(db.DateTime, default=datetime.now)
 
 class Alert(db.Model):
@@ -158,7 +207,16 @@ class Alert(db.Model):
     archived = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime)
     threshold_value = db.Column(db.String(100))
+    threshold_value2 = db.Column(db.String(100))
+    threshold_value3 = db.Column(db.String(100))
+    threshold_value4 = db.Column(db.String(100))
+    threshold_value5 = db.Column(db.String(100))
     additional_info = db.Column(db.Text)
+    code = db.Column(db.String(50))
+    snoozed_end_date = db.Column(db.DateTime)
+    archived_date = db.Column(db.DateTime)
+    folder_id = db.Column(db.String(50))
+    polling_cycles_count = db.Column(db.Integer)
     synced_at = db.Column(db.DateTime, default=datetime.now)
 
 class Contact(db.Model):
@@ -1468,7 +1526,13 @@ def export_home():
         'expenses': Expense.query.count(),
         'http_devices': HTTPDevice.query.count(),
         'generic_devices': GenericDevice.query.count(),
-        'departments': Department.query.count()
+        'departments': Department.query.count(),
+        'account': 1 if Account.query.first() else 0,
+        'ticket_comments': TicketComment.query.count(),
+        'ticket_workhours': TicketWorkHour.query.count(),
+        'agent_installed_patches': AgentInstalledPatch.query.count(),
+        'agent_available_patches': AgentAvailablePatch.query.count(),
+        'custom_field_definitions': CustomFieldDefinition.query.count()
     }
 
     # Get recent export logs
@@ -1484,7 +1548,9 @@ def sync_data(data_type):
                            sync_contacts, sync_contracts, sync_invoices, sync_tickets,
                            sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
                            sync_products, sync_expenses, sync_http_devices,
-                           sync_generic_devices, sync_departments)
+                           sync_generic_devices, sync_departments, sync_account,
+                           sync_ticket_comments, sync_ticket_workhours, sync_agent_patches,
+                           sync_custom_field_definitions)
 
     # Get API key from settings
     api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
@@ -1523,6 +1589,16 @@ def sync_data(data_type):
             success, count, error = sync_generic_devices(db, GenericDevice, api_key)
         elif data_type == 'departments':
             success, count, error = sync_departments(db, Department, api_key)
+        elif data_type == 'account':
+            success, count, error = sync_account(db, Account, api_key)
+        elif data_type == 'ticket_comments':
+            success, count, error = sync_ticket_comments(db, TicketComment, Ticket, api_key)
+        elif data_type == 'ticket_workhours':
+            success, count, error = sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key)
+        elif data_type == 'agent_patches':
+            success, count, error = sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_key)
+        elif data_type == 'custom_field_definitions':
+            success, count, error = sync_custom_field_definitions(db, CustomFieldDefinition, api_key)
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
@@ -1546,7 +1622,9 @@ def sync_all_data():
                            sync_contacts, sync_contracts, sync_invoices, sync_tickets,
                            sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
                            sync_products, sync_expenses, sync_http_devices,
-                           sync_generic_devices, sync_departments)
+                           sync_generic_devices, sync_departments, sync_account,
+                           sync_ticket_comments, sync_ticket_workhours, sync_agent_patches,
+                           sync_custom_field_definitions)
 
     # Get API key from settings
     api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
@@ -1573,7 +1651,12 @@ def sync_all_data():
         ('knowledge_base', lambda: sync_knowledge_base(db, KnowledgeBase, api_key)),
         ('products', lambda: sync_products(db, Product, api_key)),
         ('expenses', lambda: sync_expenses(db, Expense, api_key)),
-        ('departments', lambda: sync_departments(db, Department, api_key))
+        ('departments', lambda: sync_departments(db, Department, api_key)),
+        ('account', lambda: sync_account(db, Account, api_key)),
+        ('ticket_comments', lambda: sync_ticket_comments(db, TicketComment, Ticket, api_key)),
+        ('ticket_workhours', lambda: sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key)),
+        ('agent_patches', lambda: sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_key)),
+        ('custom_field_definitions', lambda: sync_custom_field_definitions(db, CustomFieldDefinition, api_key))
     ]
 
     # Execute all syncs
@@ -1629,7 +1712,13 @@ def export_all_data(export_format):
                 ('knowledge_base', KnowledgeBase.query.all()),
                 ('products', Product.query.all()),
                 ('expenses', Expense.query.all()),
-                ('departments', Department.query.all())
+                ('departments', Department.query.all()),
+                ('account', [Account.query.first()] if Account.query.first() else []),
+                ('ticket_comments', TicketComment.query.all()),
+                ('ticket_workhours', TicketWorkHour.query.all()),
+                ('agent_installed_patches', AgentInstalledPatch.query.all()),
+                ('agent_available_patches', AgentAvailablePatch.query.all()),
+                ('custom_field_definitions', CustomFieldDefinition.query.all())
             ]
 
             total_exported = 0
@@ -1724,6 +1813,25 @@ def export_data(data_type, export_format):
         elif data_type == 'departments':
             data = Department.query.all()
             exclude_fields = ['id']
+        elif data_type == 'account':
+            account = Account.query.first()
+            data = [account] if account else []
+            exclude_fields = ['id']
+        elif data_type == 'ticket_comments':
+            data = TicketComment.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'ticket_workhours':
+            data = TicketWorkHour.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'agent_installed_patches':
+            data = AgentInstalledPatch.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'agent_available_patches':
+            data = AgentAvailablePatch.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'custom_field_definitions':
+            data = CustomFieldDefinition.query.all()
+            exclude_fields = ['id']
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
@@ -1805,6 +1913,19 @@ def view_data(data_type):
             data = GenericDevice.query.order_by(GenericDevice.synced_at.desc()).limit(100).all()
         elif data_type == 'departments':
             data = Department.query.order_by(Department.synced_at.desc()).limit(100).all()
+        elif data_type == 'account':
+            account = Account.query.first()
+            data = [account] if account else []
+        elif data_type == 'ticket_comments':
+            data = TicketComment.query.order_by(TicketComment.synced_at.desc()).limit(100).all()
+        elif data_type == 'ticket_workhours':
+            data = TicketWorkHour.query.order_by(TicketWorkHour.synced_at.desc()).limit(100).all()
+        elif data_type == 'agent_installed_patches':
+            data = AgentInstalledPatch.query.order_by(AgentInstalledPatch.synced_at.desc()).limit(100).all()
+        elif data_type == 'agent_available_patches':
+            data = AgentAvailablePatch.query.order_by(AgentAvailablePatch.synced_at.desc()).limit(100).all()
+        elif data_type == 'custom_field_definitions':
+            data = CustomFieldDefinition.query.order_by(CustomFieldDefinition.synced_at.desc()).limit(100).all()
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
