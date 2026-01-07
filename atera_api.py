@@ -50,7 +50,9 @@ class AteraAPIClient:
             logger.info(f"Atera API response: {response.status_code}")
 
             if response.status_code != 200:
-                logger.error(f"Atera API error: HTTP {response.status_code} - {response.text}")
+                logger.error(f"Atera API error for {endpoint}: HTTP {response.status_code} - {response.text}")
+                if response.status_code == 400 and "incorrect account type" in response.text.lower():
+                    logger.error(f"Account type does not have access to {endpoint} - check Atera subscription/permissions")
                 return None
 
             return response.json()

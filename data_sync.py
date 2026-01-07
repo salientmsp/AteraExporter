@@ -224,14 +224,23 @@ def sync_contacts(db, Contact, api_key):
         client = AteraAPIClient(api_key)
         contacts_data = client.fetch_contacts()
 
+        logger.info(f"Raw contacts_data type: {type(contacts_data)}, is None: {contacts_data is None}")
+        if contacts_data is not None:
+            logger.info(f"Raw contacts_data length: {len(contacts_data)}")
+
         if contacts_data is None:
+            logger.error("fetch_contacts returned None - check API logs for errors")
             return False, 0, "Failed to fetch contacts from Atera API"
+
+        if len(contacts_data) == 0:
+            logger.warning("fetch_contacts returned empty list - no contacts available or API permission issue")
+            return True, 0, None
 
         logger.info(f"Fetched {len(contacts_data)} contacts from Atera API")
 
         # Log first contact structure for debugging
         if contacts_data and len(contacts_data) > 0:
-            logger.debug(f"First contact structure: {contacts_data[0]}")
+            logger.info(f"First contact structure: {contacts_data[0]}")
 
         count = 0
         skipped = 0
