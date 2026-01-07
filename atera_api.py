@@ -4,27 +4,63 @@ Handles all API calls to Atera platform for data fetching
 """
 
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 class AteraAPIClient:
-    """Client for interacting with Atera API v3"""
+    """Client for interacting with Atera API v3 with connection pooling"""
 
     BASE_URL = 'https://app.atera.com/api/v3'
 
-    def __init__(self, api_key):
-        """Initialize the Atera API client with API key"""
+    def __init__(self, api_key, pool_connections=10, pool_maxsize=20):
+        """
+        Initialize the Atera API client with API key and connection pooling
+
+        Args:
+            api_key: Atera API key for authentication
+            pool_connections: Number of connection pools to cache (default: 10)
+            pool_maxsize: Maximum number of connections in each pool (default: 20)
+        """
         self.api_key = api_key
         self.headers = {
             'X-API-KEY': api_key,
             'Accept': 'application/json'
         }
 
+        # Create a session with connection pooling
+        self.session = requests.Session()
+
+        # Configure retry strategy
+        retry_strategy = Retry(
+            total=3,  # Total number of retries
+            backoff_factor=1,  # Wait 1s, 2s, 4s between retries
+            status_forcelist=[429, 500, 502, 503, 504],  # Retry on these HTTP status codes
+            allowed_methods=["GET", "POST"]  # Only retry safe methods
+        )
+
+        # Create adapter with connection pooling and retry strategy
+        adapter = HTTPAdapter(
+            pool_connections=pool_connections,
+            pool_maxsize=pool_maxsize,
+            max_retries=retry_strategy
+        )
+
+        # Mount adapter for both HTTP and HTTPS
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
+        # Set default headers on session
+        self.session.headers.update(self.headers)
+
+        logger.info(f"Initialized AteraAPIClient with connection pool (size: {pool_maxsize})")
+
     def _make_request(self, endpoint, params=None, method='GET'):
         """
-        Make a request to the Atera API
+        Make a request to the Atera API using connection pooling
 
         Args:
             endpoint: API endpoint path (e.g., '/customers')
@@ -39,10 +75,9 @@ class AteraAPIClient:
         try:
             logger.info(f"Making {method} request to Atera API: {endpoint}")
 
-            response = requests.request(
+            response = self.session.request(
                 method=method,
                 url=url,
-                headers=self.headers,
                 params=params,
                 timeout=30
             )
@@ -247,6 +282,21 @@ class AteraAPIClient:
         """Fetch custom field definitions"""
         logger.info("Fetching custom field definitions from Atera")
         return self._make_request('/customvalues/customfields')
+
+    def close(self):
+        """Close the session and release connection pool resources"""
+        if hasattr(self, 'session'):
+            self.session.close()
+            logger.info("Closed AteraAPIClient session and connection pool")
+
+    def __enter__(self):
+        """Support for context manager (with statement)"""
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Cleanup when exiting context manager"""
+        self.close()
+        return False
 
 
 def parse_atera_datetime(date_string):
