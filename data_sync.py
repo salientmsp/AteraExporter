@@ -401,3 +401,57 @@ def sync_invoices(db, Invoice, api_key):
         logger.error(f"Error syncing invoices: {str(e)}")
         db.session.rollback()
         return False, 0, str(e)
+
+
+def sync_tickets(db, Ticket, api_key):
+    """Sync tickets from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        tickets_data = client.fetch_all_tickets()
+
+        if tickets_data is None:
+            return False, 0, "Failed to fetch tickets from Atera API"
+
+        count = 0
+        for ticket_data in tickets_data:
+            try:
+                ticket_id = str(ticket_data.get('TicketID'))
+
+                existing = Ticket.query.filter_by(ticket_id=ticket_id).first()
+
+                if existing:
+                    existing.title = ticket_data.get('TicketTitle', '')
+                    existing.description = ticket_data.get('TicketResolvedComments', '')
+                    existing.created_at = parse_atera_datetime(ticket_data.get('TicketCreatedDate'))
+                    existing.priority = ticket_data.get('TicketPriority', '')
+                    existing.status = ticket_data.get('TicketStatus', '')
+                    existing.client = ticket_data.get('CustomerName', '')
+                    existing.user = ticket_data.get('TechnicianFullName', '')
+                else:
+                    ticket = Ticket(
+                        ticket_id=ticket_id,
+                        title=ticket_data.get('TicketTitle', ''),
+                        description=ticket_data.get('TicketResolvedComments', ''),
+                        created_at=parse_atera_datetime(ticket_data.get('TicketCreatedDate')),
+                        priority=ticket_data.get('TicketPriority', ''),
+                        status=ticket_data.get('TicketStatus', ''),
+                        client=ticket_data.get('CustomerName', ''),
+                        user=ticket_data.get('TechnicianFullName', ''),
+                        notified=False
+                    )
+                    db.session.add(ticket)
+
+                count += 1
+
+            except Exception as e:
+                logger.error(f"Error processing ticket {ticket_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} tickets")
+        return True, count, None
+
+    except Exception as e:
+        logger.error(f"Error syncing tickets: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)

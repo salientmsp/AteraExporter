@@ -1282,7 +1282,7 @@ def export_home():
 def sync_data(data_type):
     """Sync data from Atera API to database"""
     from data_sync import (sync_customers, sync_agents, sync_alerts,
-                           sync_contacts, sync_contracts, sync_invoices)
+                           sync_contacts, sync_contracts, sync_invoices, sync_tickets)
 
     # Get API key from settings
     api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
@@ -1303,6 +1303,8 @@ def sync_data(data_type):
             success, count, error = sync_contracts(db, Contract, api_key)
         elif data_type == 'invoices':
             success, count, error = sync_invoices(db, Invoice, api_key)
+        elif data_type == 'tickets':
+            success, count, error = sync_tickets(db, Ticket, api_key)
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
