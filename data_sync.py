@@ -268,6 +268,8 @@ def sync_contacts(db, Contact, api_key):
                     existing.job_title = contact_data.get('JobTitle', '')
                     existing.is_contact_person = contact_data.get('IsContactPerson', False)
                     existing.in_ignore_mode = contact_data.get('InIgnoreMode', False)
+                    existing.department_id = str(contact_data.get('DepartmentID', ''))
+                    existing.department_name = contact_data.get('DepartmentName', '')
                     existing.created_at = parse_atera_datetime(contact_data.get('CreatedOn'))
                     existing.synced_at = datetime.now()
                 else:
@@ -283,6 +285,8 @@ def sync_contacts(db, Contact, api_key):
                         job_title=contact_data.get('JobTitle', ''),
                         is_contact_person=contact_data.get('IsContactPerson', False),
                         in_ignore_mode=contact_data.get('InIgnoreMode', False),
+                        department_id=str(contact_data.get('DepartmentID', '')),
+                        department_name=contact_data.get('DepartmentName', ''),
                         created_at=parse_atera_datetime(contact_data.get('CreatedOn')),
                         synced_at=datetime.now()
                     )

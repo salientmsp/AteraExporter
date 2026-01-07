@@ -174,6 +174,8 @@ class Contact(db.Model):
     job_title = db.Column(db.String(100))
     is_contact_person = db.Column(db.Boolean, default=False)
     in_ignore_mode = db.Column(db.Boolean, default=False)
+    department_id = db.Column(db.String(50))
+    department_name = db.Column(db.String(200))
     created_at = db.Column(db.DateTime)
     synced_at = db.Column(db.DateTime, default=datetime.now)
 
