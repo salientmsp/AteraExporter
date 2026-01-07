@@ -227,6 +227,7 @@ def sync_contacts(db, Contact, api_key):
         if contacts_data is None:
             return False, 0, "Failed to fetch contacts from Atera API"
 
+        logger.info(f"Fetched {len(contacts_data)} contacts from Atera API")
         count = 0
         for contact_data in contacts_data:
             try:
@@ -268,7 +269,9 @@ def sync_contacts(db, Contact, api_key):
                 count += 1
 
             except Exception as e:
-                logger.error(f"Error processing contact {contact_id}: {str(e)}")
+                logger.error(f"Error processing contact {contact_id}: {str(e)}", exc_info=True)
+                # Log the problematic contact data for debugging
+                logger.error(f"Problematic contact data: {contact_data}")
                 continue
 
         db.session.commit()
@@ -420,23 +423,45 @@ def sync_tickets(db, Ticket, api_key):
                 existing = Ticket.query.filter_by(ticket_id=ticket_id).first()
 
                 if existing:
+                    existing.ticket_number = str(ticket_data.get('TicketNumber', ''))
                     existing.title = ticket_data.get('TicketTitle', '')
-                    existing.description = ticket_data.get('TicketResolvedComments', '')
+                    existing.description = ticket_data.get('TicketDetails', '')
+                    existing.comment = ticket_data.get('Comment', '')
+                    existing.resolution = ticket_data.get('TicketResolvedComments', '')
                     existing.created_at = parse_atera_datetime(ticket_data.get('TicketCreatedDate'))
+                    existing.closed_date = parse_atera_datetime(ticket_data.get('TicketClosedDate'))
+                    existing.resolved_date = parse_atera_datetime(ticket_data.get('TicketResolvedDate'))
                     existing.priority = ticket_data.get('TicketPriority', '')
                     existing.status = ticket_data.get('TicketStatus', '')
+                    existing.ticket_type = ticket_data.get('TicketType', '')
+                    existing.ticket_impact = ticket_data.get('TicketImpact', '')
                     existing.client = ticket_data.get('CustomerName', '')
                     existing.user = ticket_data.get('TechnicianFullName', '')
+                    existing.end_user_firstname = ticket_data.get('FirstName', '')
+                    existing.end_user_lastname = ticket_data.get('LastName', '')
+                    existing.end_user_email = ticket_data.get('EndUserEmail', '')
+                    existing.end_user_phone = ticket_data.get('EndUserPhone', '')
                 else:
                     ticket = Ticket(
                         ticket_id=ticket_id,
+                        ticket_number=str(ticket_data.get('TicketNumber', '')),
                         title=ticket_data.get('TicketTitle', ''),
-                        description=ticket_data.get('TicketResolvedComments', ''),
+                        description=ticket_data.get('TicketDetails', ''),
+                        comment=ticket_data.get('Comment', ''),
+                        resolution=ticket_data.get('TicketResolvedComments', ''),
                         created_at=parse_atera_datetime(ticket_data.get('TicketCreatedDate')),
+                        closed_date=parse_atera_datetime(ticket_data.get('TicketClosedDate')),
+                        resolved_date=parse_atera_datetime(ticket_data.get('TicketResolvedDate')),
                         priority=ticket_data.get('TicketPriority', ''),
                         status=ticket_data.get('TicketStatus', ''),
+                        ticket_type=ticket_data.get('TicketType', ''),
+                        ticket_impact=ticket_data.get('TicketImpact', ''),
                         client=ticket_data.get('CustomerName', ''),
                         user=ticket_data.get('TechnicianFullName', ''),
+                        end_user_firstname=ticket_data.get('FirstName', ''),
+                        end_user_lastname=ticket_data.get('LastName', ''),
+                        end_user_email=ticket_data.get('EndUserEmail', ''),
+                        end_user_phone=ticket_data.get('EndUserPhone', ''),
                         notified=False
                     )
                     db.session.add(ticket)

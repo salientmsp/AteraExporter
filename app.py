@@ -73,15 +73,26 @@ class BusinessHours(db.Model):
 class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ticket_id = db.Column(db.String(50), nullable=False, unique=True)
+    ticket_number = db.Column(db.String(50))
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
+    comment = db.Column(db.Text)  # Latest comment/worklog
+    resolution = db.Column(db.Text)  # Resolved comments
     created_at = db.Column(db.DateTime, nullable=False)
+    closed_date = db.Column(db.DateTime)
+    resolved_date = db.Column(db.DateTime)
     priority = db.Column(db.String(20))
     status = db.Column(db.String(20))
+    ticket_type = db.Column(db.String(50))
+    ticket_impact = db.Column(db.String(50))
     client = db.Column(db.String(100))
-    user = db.Column(db.String(100))
+    user = db.Column(db.String(100))  # Technician
+    end_user_firstname = db.Column(db.String(100))
+    end_user_lastname = db.Column(db.String(100))
+    end_user_email = db.Column(db.String(200))
+    end_user_phone = db.Column(db.String(50))
     notified = db.Column(db.Boolean, default=False)
-    
+
 class SystemSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(50), nullable=False, unique=True)
