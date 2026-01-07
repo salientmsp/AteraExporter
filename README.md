@@ -33,6 +33,117 @@ A comprehensive Flask web application for monitoring Atera tickets, sending SMS 
 
 ### Prerequisites
 
+- Python 3.8 or higher (or Docker)
+- Atera API key
+- Twilio account (Account SID, Auth Token, and phone number) - optional for SMS notifications
+
+### Deployment Options
+
+You can deploy this application in two ways:
+1. **Docker (Recommended)** - Containerized deployment
+2. **Traditional Python** - Direct Python installation
+
+---
+
+## Docker Deployment (Recommended)
+
+### Quick Start with Docker Compose
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/salientmsp/AteraExporter.git
+   cd AteraExporter
+   ```
+
+2. Create a `.env` file:
+   ```bash
+   cp example.env .env
+   ```
+
+3. Edit `.env` and set your secret key:
+   ```
+   SECRET_KEY=your-secure-random-key-here
+   ```
+
+4. Start the application:
+   ```bash
+   docker-compose up -d
+   ```
+
+5. Access the application at `http://localhost:8000`
+
+### Using Pre-built Image from GitHub Container Registry
+
+Pull and run the latest image:
+
+```bash
+docker pull ghcr.io/salientmsp/ateraexporter:latest
+
+docker run -d \
+  --name atera-exporter \
+  -p 8000:8000 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/exports:/app/exports \
+  -e SECRET_KEY=your-secret-key \
+  ghcr.io/salientmsp/ateraexporter:latest
+```
+
+### Building Your Own Docker Image
+
+```bash
+docker build -t atera-exporter .
+docker run -d -p 8000:8000 -v $(pwd)/data:/app/data atera-exporter
+```
+
+### Docker Volumes
+
+The application uses the following volumes:
+- `/app/data` - Database storage (persist your data)
+- `/app/exports` - Export files location
+
+### Docker Environment Variables
+
+- `SECRET_KEY` - Flask secret key (required)
+- All Atera/Twilio API keys can be configured via the web UI
+
+### Docker Management Commands
+
+**View logs:**
+```bash
+docker-compose logs -f
+```
+
+**Stop the application:**
+```bash
+docker-compose down
+```
+
+**Restart the application:**
+```bash
+docker-compose restart
+```
+
+**Update to latest version:**
+```bash
+docker-compose pull
+docker-compose up -d
+```
+
+**Backup your data:**
+```bash
+# Backup database
+cp data/oncall.db data/oncall.db.backup
+
+# Backup exports
+tar -czf exports-backup.tar.gz exports/
+```
+
+---
+
+## Traditional Python Installation
+
+### Prerequisites
+
 - Python 3.8 or higher
 - Atera API key
 - Twilio account (Account SID, Auth Token, and phone number)

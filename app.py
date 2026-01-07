@@ -16,7 +16,11 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///oncall.db'
+
+# Database configuration - use data directory if it exists, otherwise current directory
+db_dir = 'data' if os.path.exists('data') else '.'
+db_path = os.path.join(db_dir, 'oncall.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database
