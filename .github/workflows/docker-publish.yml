@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - 'claude/**'  # Allow builds on claude/* branches
     tags:
       - 'v*'
   pull_request:
