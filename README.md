@@ -77,6 +77,11 @@ You can deploy this application in two ways:
 Pull and run the latest image:
 
 ```bash
+# Create directories with proper permissions
+mkdir -p data exports
+chmod 777 data exports  # Or: sudo chown 1000:1000 data exports
+
+# Pull and run
 docker pull ghcr.io/salientmsp/ateraexporter:latest
 
 docker run -d \
@@ -88,11 +93,19 @@ docker run -d \
   ghcr.io/salientmsp/ateraexporter:latest
 ```
 
+**Important:** The container runs as a non-root user (UID 1000) for security. Ensure the `data` and `exports` directories are writable by this user.
+
 ### Building Your Own Docker Image
 
 ```bash
 docker build -t atera-exporter .
-docker run -d -p 8000:8000 -v $(pwd)/data:/app/data atera-exporter
+
+# Create directories first
+mkdir -p data exports
+chmod 777 data exports
+
+# Run the container
+docker run -d -p 8000:8000 -v $(pwd)/data:/app/data -v $(pwd)/exports:/app/exports atera-exporter
 ```
 
 ### Docker Volumes

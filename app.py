@@ -17,8 +17,20 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
 
-# Database configuration - use data directory if it exists, otherwise current directory
-db_dir = 'data' if os.path.exists('data') else '.'
+# Database configuration - ensure data directory exists and is writable
+db_dir = 'data'
+try:
+    os.makedirs(db_dir, exist_ok=True)
+    # Test if directory is writable
+    test_file = os.path.join(db_dir, '.write_test')
+    with open(test_file, 'w') as f:
+        f.write('test')
+    os.remove(test_file)
+except (OSError, PermissionError) as e:
+    # If data directory isn't writable, fall back to current directory
+    print(f"Warning: Cannot write to data directory, using current directory: {e}")
+    db_dir = '.'
+
 db_path = os.path.join(db_dir, 'oncall.db')
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False

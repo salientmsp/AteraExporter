@@ -24,12 +24,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create necessary directories
-RUN mkdir -p data exports
+# Create a non-root user first
+RUN useradd -m -u 1000 appuser
 
-# Create a non-root user
-RUN useradd -m -u 1000 appuser && \
-    chown -R appuser:appuser /app
+# Create necessary directories and set ownership
+RUN mkdir -p data exports && \
+    chown -R appuser:appuser /app && \
+    chmod -R 755 /app/data /app/exports
 
 # Switch to non-root user
 USER appuser
