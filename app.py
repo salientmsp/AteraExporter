@@ -90,6 +90,115 @@ class Holiday(db.Model):
     description = db.Column(db.Text, nullable=True)
     notified = db.Column(db.Boolean, default=False)
 
+# Atera Data Models for Export
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_name = db.Column(db.String(200), nullable=False)
+    domain = db.Column(db.String(200))
+    business_number = db.Column(db.String(100))
+    address = db.Column(db.Text)
+    city = db.Column(db.String(100))
+    state = db.Column(db.String(100))
+    country = db.Column(db.String(100))
+    zip_code = db.Column(db.String(20))
+    phone = db.Column(db.String(50))
+    fax = db.Column(db.String(50))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime)
+    last_modified = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Agent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.String(50), nullable=False, unique=True)
+    machine_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    domain_name = db.Column(db.String(200))
+    operating_system = db.Column(db.String(200))
+    ip_address = db.Column(db.String(50))
+    last_login_user = db.Column(db.String(100))
+    antivirus_status = db.Column(db.String(50))
+    agent_version = db.Column(db.String(50))
+    online = db.Column(db.Boolean)
+    created_at = db.Column(db.DateTime)
+    last_seen = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Alert(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    alert_id = db.Column(db.String(50), nullable=False, unique=True)
+    alert_message = db.Column(db.Text)
+    alert_category = db.Column(db.String(100))
+    severity = db.Column(db.String(50))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    device_name = db.Column(db.String(200))
+    alert_source = db.Column(db.String(100))
+    archived = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime)
+    threshold_value = db.Column(db.String(100))
+    additional_info = db.Column(db.Text)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Contact(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contact_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    email = db.Column(db.String(200))
+    firstname = db.Column(db.String(100))
+    lastname = db.Column(db.String(100))
+    phone = db.Column(db.String(50))
+    mobile_phone = db.Column(db.String(50))
+    job_title = db.Column(db.String(100))
+    is_contact_person = db.Column(db.Boolean, default=False)
+    in_ignore_mode = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Contract(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contract_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    contract_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    contract_type = db.Column(db.String(100))
+    amount = db.Column(db.Float)
+    billing_period = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Invoice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    invoice_number = db.Column(db.String(100))
+    invoice_date = db.Column(db.Date)
+    due_date = db.Column(db.Date)
+    total_amount = db.Column(db.Float)
+    paid = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(50))
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class ExportLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    export_type = db.Column(db.String(50), nullable=False)  # tickets, customers, agents, etc.
+    export_format = db.Column(db.String(20), nullable=False)  # csv, json, excel
+    file_path = db.Column(db.String(500))
+    record_count = db.Column(db.Integer)
+    status = db.Column(db.String(20))  # success, failed, in_progress
+    error_message = db.Column(db.Text)
+    created_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.now)
+
 # Helper functions
 def get_setting(key, default=''):
     """Get a setting value from the database or return the default"""
@@ -1142,6 +1251,157 @@ def setup():
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# Data Export Routes
+@app.route('/export')
+@login_required
+def export_home():
+    """Main export dashboard showing all data types"""
+    # Get counts for each data type
+    counts = {
+        'tickets': Ticket.query.count(),
+        'customers': Customer.query.count(),
+        'agents': Agent.query.count(),
+        'alerts': Alert.query.count(),
+        'contacts': Contact.query.count(),
+        'contracts': Contract.query.count(),
+        'invoices': Invoice.query.count()
+    }
+
+    # Get recent export logs
+    recent_exports = ExportLog.query.order_by(ExportLog.created_at.desc()).limit(10).all()
+
+    return render_template('export.html', counts=counts, recent_exports=recent_exports)
+
+@app.route('/sync/<data_type>')
+@login_required
+def sync_data(data_type):
+    """Sync data from Atera API to database"""
+    from data_sync import (sync_customers, sync_agents, sync_alerts,
+                           sync_contacts, sync_contracts, sync_invoices)
+
+    # Get API key from settings
+    api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
+    if not api_key:
+        flash('Atera API key not configured', 'danger')
+        return redirect(url_for('export_home'))
+
+    try:
+        if data_type == 'customers':
+            success, count, error = sync_customers(db, Customer, api_key)
+        elif data_type == 'agents':
+            success, count, error = sync_agents(db, Agent, api_key)
+        elif data_type == 'alerts':
+            success, count, error = sync_alerts(db, Alert, api_key)
+        elif data_type == 'contacts':
+            success, count, error = sync_contacts(db, Contact, api_key)
+        elif data_type == 'contracts':
+            success, count, error = sync_contracts(db, Contract, api_key)
+        elif data_type == 'invoices':
+            success, count, error = sync_invoices(db, Invoice, api_key)
+        else:
+            flash(f'Unknown data type: {data_type}', 'danger')
+            return redirect(url_for('export_home'))
+
+        if success:
+            flash(f'Successfully synced {count} {data_type}', 'success')
+        else:
+            flash(f'Error syncing {data_type}: {error}', 'danger')
+
+    except Exception as e:
+        app.logger.error(f"Error syncing {data_type}: {str(e)}")
+        flash(f'Error syncing {data_type}: {str(e)}', 'danger')
+
+    return redirect(url_for('export_home'))
+
+@app.route('/export/<data_type>/<export_format>')
+@login_required
+def export_data(data_type, export_format):
+    """Export data to specified format"""
+    from export_utils import export_models
+
+    try:
+        # Get the appropriate model and data
+        if data_type == 'tickets':
+            data = Ticket.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'customers':
+            data = Customer.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'agents':
+            data = Agent.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'alerts':
+            data = Alert.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'contacts':
+            data = Contact.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'contracts':
+            data = Contract.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'invoices':
+            data = Invoice.query.all()
+            exclude_fields = ['id']
+        else:
+            flash(f'Unknown data type: {data_type}', 'danger')
+            return redirect(url_for('export_home'))
+
+        # Perform export
+        success, filename, count, error = export_models(data, data_type, export_format, exclude_fields)
+
+        # Log the export
+        export_log = ExportLog(
+            export_type=data_type,
+            export_format=export_format,
+            file_path=filename if success else None,
+            record_count=count,
+            status='success' if success else 'failed',
+            error_message=error,
+            created_by=current_user.username,
+            created_at=datetime.now()
+        )
+        db.session.add(export_log)
+        db.session.commit()
+
+        if success:
+            flash(f'Successfully exported {count} {data_type} to {export_format.upper()}. File: {filename}', 'success')
+        else:
+            flash(f'Error exporting {data_type}: {error}', 'danger')
+
+    except Exception as e:
+        app.logger.error(f"Error exporting {data_type}: {str(e)}")
+        flash(f'Error exporting {data_type}: {str(e)}', 'danger')
+
+    return redirect(url_for('export_home'))
+
+@app.route('/view/<data_type>')
+@login_required
+def view_data(data_type):
+    """View data in the browser"""
+    try:
+        if data_type == 'customers':
+            data = Customer.query.order_by(Customer.synced_at.desc()).limit(100).all()
+        elif data_type == 'agents':
+            data = Agent.query.order_by(Agent.synced_at.desc()).limit(100).all()
+        elif data_type == 'alerts':
+            data = Alert.query.order_by(Alert.created_at.desc()).limit(100).all()
+        elif data_type == 'contacts':
+            data = Contact.query.order_by(Contact.synced_at.desc()).limit(100).all()
+        elif data_type == 'contracts':
+            data = Contract.query.order_by(Contract.synced_at.desc()).limit(100).all()
+        elif data_type == 'invoices':
+            data = Invoice.query.order_by(Invoice.synced_at.desc()).limit(100).all()
+        else:
+            flash(f'Unknown data type: {data_type}', 'danger')
+            return redirect(url_for('export_home'))
+
+        return render_template('view_data.html', data_type=data_type, data=data)
+
+    except Exception as e:
+        app.logger.error(f"Error viewing {data_type}: {str(e)}")
+        flash(f'Error viewing {data_type}: {str(e)}', 'danger')
+        return redirect(url_for('export_home'))
 
 # Create database tables
 with app.app_context():

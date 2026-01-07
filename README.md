@@ -1,16 +1,33 @@
-# On-Call Ticket Monitor
+# Atera Exporter
 
-A Flask web application for monitoring tickets from Atera and sending SMS notifications to on-call technicians when tickets come in after business hours or on holidays.
+A comprehensive Flask web application for monitoring Atera tickets, sending SMS notifications to on-call technicians, and exporting all your Atera data to various formats.
 
 ## Features
 
+### On-Call Monitoring
 - **Ticket Monitoring**: Integration with Atera API to fetch and track support tickets
 - **SMS Notifications**: Integration with Twilio for sending text notifications to on-call technicians
 - **Multiple On-Call Technicians**: Support for multiple technicians with overlapping schedules
 - **Business Hours Configuration**: Configure business hours for each day of the week
 - **Holiday Calendar**: Manage holidays with automatic notification handling
+
+### Data Export
+- **Comprehensive Data Sync**: Sync all your Atera data including:
+  - Customers
+  - Agents
+  - Alerts
+  - Contacts
+  - Contracts
+  - Invoices
+  - Tickets
+- **Multiple Export Formats**: Export to CSV, JSON, or Excel (XLSX)
+- **Export History**: Track all exports with detailed logs
+- **Data Viewing**: Browse all synced data directly in the web interface
+
+### General
 - **Web-Based Configuration**: Manage all settings through a user-friendly web interface
 - **Comprehensive Logging**: Detailed logging for troubleshooting and monitoring
+- **Secure Storage**: All data stored securely in local database
 
 ## Setup Instructions
 
@@ -185,6 +202,63 @@ The application uses APScheduler to run background jobs:
 - **Ticket Fetching**: Runs at configurable intervals (default: 5 minutes) to check for new tickets
 - **Notification Sending**: Automatically sends SMS to on-call technicians for after-hours or holiday tickets
 - **Performance Monitoring**: Tracks job execution time and provides detailed logs
+
+## Using the Export Features
+
+### Accessing the Export Dashboard
+
+1. Navigate to the "Export" menu item in the navigation bar
+2. You'll see a dashboard showing all available data types and their record counts
+
+### Syncing Data from Atera
+
+To sync data from your Atera account:
+
+1. Ensure your Atera API key is configured in Settings
+2. On the Export dashboard, click "Sync from Atera" for any data type
+3. The application will fetch all data from Atera and store it locally
+4. You'll see a success message showing how many records were synced
+
+### Viewing Data
+
+To view synced data in the browser:
+
+1. Click "View Data" on any data type card
+2. You'll see a table showing up to 100 most recent records
+3. This is useful for quick inspection before exporting
+
+### Exporting Data
+
+To export data to a file:
+
+1. Choose the data type you want to export
+2. Click on one of the export format buttons (CSV, JSON, or Excel)
+3. The application will create the export file in the `exports/` directory
+4. You'll see a success message with the filename
+5. All exports are logged in the "Recent Exports" section
+
+### Export Formats
+
+- **CSV**: Comma-separated values, ideal for importing into other applications or Excel
+- **JSON**: JavaScript Object Notation, ideal for programmatic use or API integrations
+- **Excel (XLSX)**: Microsoft Excel format with formatted headers and auto-sized columns
+
+### Export Files Location
+
+All export files are saved in the `exports/` directory in the application root. The filename format is:
+
+```
+{data_type}_{timestamp}.{format}
+```
+
+Example: `customers_20260107_143052.csv`
+
+### Best Practices
+
+1. **Regular Syncing**: Sync your data regularly to ensure exports contain the latest information
+2. **Check Before Export**: Use the "View Data" feature to verify data before exporting
+3. **Organize Exports**: Regularly move or archive old export files from the `exports/` directory
+4. **Monitor Export History**: Check the "Recent Exports" section to track your export activity
 
 ## Security Considerations
 
