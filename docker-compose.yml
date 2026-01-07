@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  atera-exporter:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: atera-exporter
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/login', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Optional: Add a reverse proxy with SSL
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: atera-exporter-nginx
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #     - ./ssl:/etc/nginx/ssl:ro
+  #   depends_on:
+  #     - atera-exporter
+  #   restart: unless-stopped
+
+networks:
+  default:
+    name: atera-exporter-network

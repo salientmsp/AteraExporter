@@ -1,18 +1,144 @@
-# On-Call Ticket Monitor
+# Atera Exporter
 
-A Flask web application for monitoring tickets from Atera and sending SMS notifications to on-call technicians when tickets come in after business hours or on holidays.
+A comprehensive Flask web application for monitoring Atera tickets, sending SMS notifications to on-call technicians, and exporting all your Atera data to various formats.
 
 ## Features
 
+### On-Call Monitoring
 - **Ticket Monitoring**: Integration with Atera API to fetch and track support tickets
 - **SMS Notifications**: Integration with Twilio for sending text notifications to on-call technicians
 - **Multiple On-Call Technicians**: Support for multiple technicians with overlapping schedules
 - **Business Hours Configuration**: Configure business hours for each day of the week
 - **Holiday Calendar**: Manage holidays with automatic notification handling
+
+### Data Export
+- **Comprehensive Data Sync**: Sync all your Atera data including:
+  - Customers
+  - Agents
+  - Alerts
+  - Contacts
+  - Contracts
+  - Invoices
+  - Tickets
+- **Multiple Export Formats**: Export to CSV, JSON, or Excel (XLSX)
+- **Export History**: Track all exports with detailed logs
+- **Data Viewing**: Browse all synced data directly in the web interface
+
+### General
 - **Web-Based Configuration**: Manage all settings through a user-friendly web interface
 - **Comprehensive Logging**: Detailed logging for troubleshooting and monitoring
+- **Secure Storage**: All data stored securely in local database
 
 ## Setup Instructions
+
+### Prerequisites
+
+- Python 3.8 or higher (or Docker)
+- Atera API key
+- Twilio account (Account SID, Auth Token, and phone number) - optional for SMS notifications
+
+### Deployment Options
+
+You can deploy this application in two ways:
+1. **Docker (Recommended)** - Containerized deployment
+2. **Traditional Python** - Direct Python installation
+
+---
+
+## Docker Deployment (Recommended)
+
+### Quick Start with Docker Compose
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/salientmsp/AteraExporter.git
+   cd AteraExporter
+   ```
+
+2. Create a `.env` file:
+   ```bash
+   cp example.env .env
+   ```
+
+3. Edit `.env` and set your secret key:
+   ```
+   SECRET_KEY=your-secure-random-key-here
+   ```
+
+4. Start the application:
+   ```bash
+   docker-compose up -d
+   ```
+
+5. Access the application at `http://localhost:8000`
+
+### Using Pre-built Image from GitHub Container Registry
+
+Pull and run the latest image:
+
+```bash
+docker pull ghcr.io/salientmsp/ateraexporter:latest
+
+docker run -d \
+  --name atera-exporter \
+  -p 8000:8000 \
+  -e SECRET_KEY=your-secret-key \
+  ghcr.io/salientmsp/ateraexporter:latest
+```
+
+**Note:** The application uses an in-memory SQLite database. All data (settings, schedules, synced data) will be lost when the container restarts. This is ideal for testing and temporary use.
+
+### Building Your Own Docker Image
+
+```bash
+docker build -t atera-exporter .
+
+# Run the container
+docker run -d -p 8000:8000 atera-exporter
+```
+
+### Docker Storage
+
+**Database:** The application uses an in-memory SQLite database - no volume mounts required.
+
+**Exports:** Generated in-memory and downloaded directly to your browser.
+
+**Result:** Zero persistence, zero permission issues, maximum simplicity.
+
+### Docker Environment Variables
+
+- `SECRET_KEY` - Flask secret key (required)
+- All Atera/Twilio API keys can be configured via the web UI
+
+### Docker Management Commands
+
+**View logs:**
+```bash
+docker-compose logs -f
+```
+
+**Stop the application:**
+```bash
+docker-compose down
+```
+
+**Restart the application:**
+```bash
+docker-compose restart
+```
+
+**Update to latest version:**
+```bash
+docker-compose pull
+docker-compose up -d
+```
+
+**Note on data persistence:**
+The application uses an in-memory database, so all data is lost on restart. If you need persistence, consider modifying `app.py` to use a persistent database or volume mount.
+
+---
+
+## Traditional Python Installation
 
 ### Prerequisites
 
@@ -185,6 +311,64 @@ The application uses APScheduler to run background jobs:
 - **Ticket Fetching**: Runs at configurable intervals (default: 5 minutes) to check for new tickets
 - **Notification Sending**: Automatically sends SMS to on-call technicians for after-hours or holiday tickets
 - **Performance Monitoring**: Tracks job execution time and provides detailed logs
+
+## Using the Export Features
+
+### Accessing the Export Dashboard
+
+1. Navigate to the "Export" menu item in the navigation bar
+2. You'll see a dashboard showing all available data types and their record counts
+
+### Syncing Data from Atera
+
+To sync data from your Atera account:
+
+1. Ensure your Atera API key is configured in Settings
+2. On the Export dashboard, click "Sync from Atera" for any data type
+3. The application will fetch all data from Atera and store it locally
+4. You'll see a success message showing how many records were synced
+
+### Viewing Data
+
+To view synced data in the browser:
+
+1. Click "View Data" on any data type card
+2. You'll see a table showing up to 100 most recent records
+3. This is useful for quick inspection before exporting
+
+### Exporting Data
+
+To export data to a file:
+
+1. Choose the data type you want to export
+2. Click on one of the export format buttons (CSV, JSON, or Excel)
+3. The file will be generated in-memory and downloaded directly to your browser
+4. All exports are logged in the "Recent Exports" section for tracking
+
+### Export Formats
+
+- **CSV**: Comma-separated values, ideal for importing into other applications or Excel
+- **JSON**: JavaScript Object Notation, ideal for programmatic use or API integrations
+- **Excel (XLSX)**: Microsoft Excel format with formatted headers and auto-sized columns
+
+### Export File Naming
+
+Downloaded files follow this naming convention:
+
+```
+{data_type}_{timestamp}.{format}
+```
+
+Example: `customers_20260107_143052.csv`
+
+**Note:** Files are generated on-demand and served directly to your browser without being stored on the server, eliminating the need for disk space management and permission issues.
+
+### Best Practices
+
+1. **Regular Syncing**: Sync your data regularly to ensure exports contain the latest information
+2. **Check Before Export**: Use the "View Data" feature to verify data before exporting
+3. **Monitor Export History**: Check the "Recent Exports" section to track your export activity
+4. **Save Important Exports**: Since exports are downloaded directly, remember to save important exports to your preferred location
 
 ## Security Considerations
 

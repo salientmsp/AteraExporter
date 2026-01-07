@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from datetime import datetime, time, timedelta
@@ -7,6 +7,8 @@ from dotenv import load_dotenv
 import requests
 import json
 import pytz
+import sqlite3
+import threading
 from apscheduler.schedulers.background import BackgroundScheduler
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -16,11 +18,38 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///oncall.db'
+
+# Database configuration - use file-based SQLite database
+db_path = os.path.join(os.path.dirname(__file__), 'data', 'atera.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+    'connect_args': {
+        'check_same_thread': False,  # Allow multi-threading
+        'timeout': 30  # Increase timeout for database locks to 30 seconds
+    }
+}
+print(f"Using SQLite database at: {db_path}")
 
 # Initialize database
 db = SQLAlchemy(app)
+
+# Enable WAL mode for better concurrency
+def enable_wal_mode():
+    """Enable Write-Ahead Logging mode for SQLite to support concurrent writes"""
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA synchronous=NORMAL')  # Balance between safety and speed
+        conn.execute('PRAGMA busy_timeout=30000')  # 30 second timeout
+        conn.close()
+        print("SQLite WAL mode enabled for better concurrency")
+    except Exception as e:
+        print(f"Warning: Could not enable WAL mode: {e}")
+
+enable_wal_mode()
 
 # Initialize login manager
 login_manager = LoginManager()
@@ -30,6 +59,16 @@ login_manager.login_view = 'login'
 # Initialize scheduler
 scheduler = BackgroundScheduler()
 scheduler.start()
+
+# Global sync status tracker
+sync_status = {
+    'running': False,
+    'progress': '',
+    'total_synced': 0,
+    'errors': [],
+    'start_time': None
+}
+sync_status_lock = threading.Lock()
 
 # Add context processor for templates
 @app.context_processor
@@ -69,15 +108,40 @@ class BusinessHours(db.Model):
 class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     ticket_id = db.Column(db.String(50), nullable=False, unique=True)
+    ticket_number = db.Column(db.String(50))
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
+    comment = db.Column(db.Text)  # Latest comment/worklog
+    resolution = db.Column(db.Text)  # Resolved comments
     created_at = db.Column(db.DateTime, nullable=False)
+    closed_date = db.Column(db.DateTime)
+    resolved_date = db.Column(db.DateTime)
     priority = db.Column(db.String(20))
     status = db.Column(db.String(20))
+    ticket_type = db.Column(db.String(50))
+    ticket_impact = db.Column(db.String(50))
     client = db.Column(db.String(100))
-    user = db.Column(db.String(100))
+    user = db.Column(db.String(100))  # Technician
+    end_user_firstname = db.Column(db.String(100))
+    end_user_lastname = db.Column(db.String(100))
+    end_user_email = db.Column(db.String(200))
+    end_user_phone = db.Column(db.String(50))
     notified = db.Column(db.Boolean, default=False)
-    
+    # Additional timing fields
+    technician_first_comment_date = db.Column(db.DateTime)
+    first_response_due_date = db.Column(db.DateTime)
+    closed_ticket_due_date = db.Column(db.DateTime)
+    # Comment tracking
+    first_comment = db.Column(db.Text)
+    last_end_user_comment_timestamp = db.Column(db.DateTime)
+    last_technician_comment_timestamp = db.Column(db.DateTime)
+    # Related information
+    customer_business_number = db.Column(db.String(100))
+    technician_full_name = db.Column(db.String(200))
+    technician_email = db.Column(db.String(200))
+    contract_id = db.Column(db.String(50))
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
 class SystemSetting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(50), nullable=False, unique=True)
@@ -89,6 +153,335 @@ class Holiday(db.Model):
     date = db.Column(db.Date, nullable=False)
     description = db.Column(db.Text, nullable=True)
     notified = db.Column(db.Boolean, default=False)
+
+# Atera Data Models for Export
+class Customer(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_name = db.Column(db.String(200), nullable=False)
+    domain = db.Column(db.String(200))
+    business_number = db.Column(db.String(100))
+    address = db.Column(db.Text)
+    city = db.Column(db.String(100))
+    state = db.Column(db.String(100))
+    country = db.Column(db.String(100))
+    zip_code = db.Column(db.String(20))
+    phone = db.Column(db.String(50))
+    fax = db.Column(db.String(50))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime)
+    last_modified = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Agent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_guid = db.Column(db.String(100))
+    machine_name = db.Column(db.String(200))
+    system_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    folder_id = db.Column(db.String(50))
+    folder_name = db.Column(db.String(200))
+    domain_name = db.Column(db.String(200))
+    operating_system = db.Column(db.String(200))
+    os_version = db.Column(db.String(100))
+    os_build = db.Column(db.String(100))
+    ip_address = db.Column(db.String(50))
+    mac_addresses = db.Column(db.Text)  # JSON array
+    last_login_user = db.Column(db.String(100))
+    antivirus_status = db.Column(db.String(50))
+    agent_version = db.Column(db.String(50))
+    online = db.Column(db.Boolean)
+    monitored = db.Column(db.Boolean)
+    favorite = db.Column(db.Boolean)
+    # Hardware details
+    processor = db.Column(db.String(200))
+    processor_cores_count = db.Column(db.Integer)
+    memory = db.Column(db.Integer)
+    motherboard = db.Column(db.String(200))
+    display = db.Column(db.String(200))
+    sound = db.Column(db.String(200))
+    # Vendor information
+    vendor = db.Column(db.String(100))
+    vendor_serial_number = db.Column(db.String(100))
+    vendor_brand_model = db.Column(db.String(200))
+    product_name = db.Column(db.String(200))
+    # BIOS information
+    bios_manufacturer = db.Column(db.String(100))
+    bios_version = db.Column(db.String(100))
+    bios_release_date = db.Column(db.DateTime)
+    # Software
+    office = db.Column(db.String(200))
+    office_full_version = db.Column(db.String(100))
+    # Monitoring
+    threshold_id = db.Column(db.String(50))
+    reported_from_ip = db.Column(db.String(50))
+    device_type = db.Column(db.String(50))
+    # Timestamps
+    created_at = db.Column(db.DateTime)
+    modified = db.Column(db.DateTime)
+    last_seen = db.Column(db.DateTime)
+    last_reboot_time = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Alert(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    alert_id = db.Column(db.String(50), nullable=False, unique=True)
+    alert_message = db.Column(db.Text)
+    alert_category = db.Column(db.String(100))
+    severity = db.Column(db.String(50))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    device_name = db.Column(db.String(200))
+    alert_source = db.Column(db.String(100))
+    archived = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime)
+    threshold_value = db.Column(db.String(100))
+    threshold_value2 = db.Column(db.String(100))
+    threshold_value3 = db.Column(db.String(100))
+    threshold_value4 = db.Column(db.String(100))
+    threshold_value5 = db.Column(db.String(100))
+    additional_info = db.Column(db.Text)
+    code = db.Column(db.String(50))
+    snoozed_end_date = db.Column(db.DateTime)
+    archived_date = db.Column(db.DateTime)
+    folder_id = db.Column(db.String(50))
+    polling_cycles_count = db.Column(db.Integer)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Contact(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contact_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    email = db.Column(db.String(200))
+    firstname = db.Column(db.String(100))
+    lastname = db.Column(db.String(100))
+    phone = db.Column(db.String(50))
+    mobile_phone = db.Column(db.String(50))
+    job_title = db.Column(db.String(100))
+    is_contact_person = db.Column(db.Boolean, default=False)
+    in_ignore_mode = db.Column(db.Boolean, default=False)
+    department_id = db.Column(db.String(50))
+    department_name = db.Column(db.String(200))
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Contract(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    contract_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    contract_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    start_date = db.Column(db.Date)
+    end_date = db.Column(db.Date)
+    contract_type = db.Column(db.String(100))
+    amount = db.Column(db.Float)
+    billing_period = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Invoice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    invoice_id = db.Column(db.String(50), nullable=False, unique=True)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    invoice_number = db.Column(db.String(100))
+    invoice_date = db.Column(db.Date)
+    due_date = db.Column(db.Date)
+    total_amount = db.Column(db.Float)
+    paid = db.Column(db.Boolean, default=False)
+    status = db.Column(db.String(50))
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class SNMPDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    ip_address = db.Column(db.String(50))
+    snmp_version = db.Column(db.String(20))
+    device_type = db.Column(db.String(100))
+    system_name = db.Column(db.String(200))
+    system_location = db.Column(db.String(200))
+    system_contact = db.Column(db.String(200))
+    system_description = db.Column(db.Text)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class TCPDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    ip_address = db.Column(db.String(50))
+    port = db.Column(db.Integer)
+    device_type = db.Column(db.String(100))  # TCP, HTTP, Generic
+    monitoring_enabled = db.Column(db.Boolean, default=True)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class KnowledgeBase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.String(50), nullable=False, unique=True)
+    title = db.Column(db.String(500))
+    content = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    keywords = db.Column(db.Text)
+    created_by = db.Column(db.String(100))
+    last_modified_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime)
+    last_modified = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.String(50), nullable=False, unique=True)
+    product_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    rate = db.Column(db.Float)
+    rate_type = db.Column(db.String(50))  # hourly, monthly, one-time, etc.
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    expense_id = db.Column(db.String(50), nullable=False, unique=True)
+    expense_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    amount = db.Column(db.Float)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    ticket_id = db.Column(db.String(50))
+    expense_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class HTTPDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    url = db.Column(db.String(500))
+    expected_response = db.Column(db.String(500))
+    monitoring_enabled = db.Column(db.Boolean, default=True)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class GenericDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    monitoring_enabled = db.Column(db.Boolean, default=True)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Department(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    department_id = db.Column(db.String(50), nullable=False, unique=True)
+    department_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Account(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    account_id = db.Column(db.String(100), unique=True)
+    country = db.Column(db.String(100))
+    company_name = db.Column(db.String(200))
+    created_on = db.Column(db.DateTime)
+    state = db.Column(db.String(100))
+    timezone_name = db.Column(db.String(100))
+    city = db.Column(db.String(100))
+    address = db.Column(db.String(200))
+    postal_code = db.Column(db.String(20))
+    phone = db.Column(db.String(50))
+    is_it_department = db.Column(db.Boolean)
+    plan = db.Column(db.String(100))
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class TicketComment(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.String(50), nullable=False)
+    comment_date = db.Column(db.DateTime)
+    comment_text = db.Column(db.Text)
+    end_user_id = db.Column(db.String(50))
+    technician_contact_id = db.Column(db.String(50))
+    email = db.Column(db.String(200))
+    first_name = db.Column(db.String(100))
+    last_name = db.Column(db.String(100))
+    is_internal = db.Column(db.Boolean)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class TicketWorkHour(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    ticket_id = db.Column(db.String(50), nullable=False)
+    work_hours_id = db.Column(db.String(50))
+    start_work_hour = db.Column(db.DateTime)
+    end_work_hour = db.Column(db.DateTime)
+    technician_contact_id = db.Column(db.String(50))
+    billable = db.Column(db.Boolean)
+    on_customer_site = db.Column(db.Boolean)
+    description = db.Column(db.Text)
+    technician_full_name = db.Column(db.String(200))
+    technician_email = db.Column(db.String(200))
+    rate_id = db.Column(db.Integer)
+    rate_amount = db.Column(db.Float)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class AgentInstalledPatch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_guid = db.Column(db.String(100), nullable=False)
+    agent_id = db.Column(db.String(50))
+    name = db.Column(db.String(200))
+    patch_class = db.Column(db.String(100))
+    kb_id = db.Column(db.String(50))
+    install_date = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class AgentAvailablePatch(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_guid = db.Column(db.String(100), nullable=False)
+    agent_id = db.Column(db.String(50))
+    name = db.Column(db.String(200))
+    patch_class = db.Column(db.String(100))
+    kb_id = db.Column(db.String(50))
+    status = db.Column(db.String(50))
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class CustomFieldDefinition(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    field_name = db.Column(db.String(200), unique=True)
+    data_type = db.Column(db.String(50))  # Text, Boolean, Numeric, Date, Options
+    target = db.Column(db.String(50))  # Customer, Ticket, Contact, etc.
+    possible_values = db.Column(db.Text)  # JSON array for options
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class ExportLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    export_type = db.Column(db.String(50), nullable=False)  # tickets, customers, agents, etc.
+    export_format = db.Column(db.String(20), nullable=False)  # csv, json, excel
+    file_path = db.Column(db.String(500))
+    record_count = db.Column(db.Integer)
+    status = db.Column(db.String(20))  # success, failed, in_progress
+    error_message = db.Column(db.Text)
+    created_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.now)
 
 # Helper functions
 def get_setting(key, default=''):
@@ -1143,9 +1536,508 @@ def setup():
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Create database tables
+# Data Export Routes
+@app.route('/export')
+@login_required
+def export_home():
+    """Main export dashboard showing all data types"""
+    # Get counts for each data type
+    counts = {
+        'tickets': Ticket.query.count(),
+        'customers': Customer.query.count(),
+        'agents': Agent.query.count(),
+        'alerts': Alert.query.count(),
+        'contacts': Contact.query.count(),
+        'contracts': Contract.query.count(),
+        'invoices': Invoice.query.count(),
+        'snmp_devices': SNMPDevice.query.count(),
+        'tcp_devices': TCPDevice.query.count(),
+        'knowledge_base': KnowledgeBase.query.count(),
+        'products': Product.query.count(),
+        'expenses': Expense.query.count(),
+        'http_devices': HTTPDevice.query.count(),
+        'generic_devices': GenericDevice.query.count(),
+        'departments': Department.query.count(),
+        'account': 1 if Account.query.first() else 0,
+        'ticket_comments': TicketComment.query.count(),
+        'ticket_workhours': TicketWorkHour.query.count(),
+        'agent_installed_patches': AgentInstalledPatch.query.count(),
+        'agent_available_patches': AgentAvailablePatch.query.count(),
+        'custom_field_definitions': CustomFieldDefinition.query.count()
+    }
+
+    # Get recent export logs
+    recent_exports = ExportLog.query.order_by(ExportLog.created_at.desc()).limit(10).all()
+
+    return render_template('export.html', counts=counts, recent_exports=recent_exports)
+
+@app.route('/sync/<data_type>')
+@login_required
+def sync_data(data_type):
+    """Sync data from Atera API to database"""
+    from data_sync import (sync_customers, sync_agents, sync_alerts,
+                           sync_contacts, sync_contracts, sync_invoices, sync_tickets,
+                           sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
+                           sync_products, sync_expenses, sync_http_devices,
+                           sync_generic_devices, sync_departments, sync_account,
+                           sync_ticket_comments, sync_ticket_workhours, sync_agent_patches,
+                           sync_custom_field_definitions)
+
+    # Get API key from settings
+    api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
+    if not api_key:
+        flash('Atera API key not configured', 'danger')
+        return redirect(url_for('export_home'))
+
+    try:
+        if data_type == 'customers':
+            success, count, error = sync_customers(db, Customer, api_key)
+        elif data_type == 'agents':
+            success, count, error = sync_agents(db, Agent, api_key)
+        elif data_type == 'alerts':
+            success, count, error = sync_alerts(db, Alert, api_key)
+        elif data_type == 'contacts':
+            success, count, error = sync_contacts(db, Contact, api_key)
+        elif data_type == 'contracts':
+            success, count, error = sync_contracts(db, Contract, api_key)
+        elif data_type == 'invoices':
+            success, count, error = sync_invoices(db, Invoice, api_key)
+        elif data_type == 'tickets':
+            success, count, error = sync_tickets(db, Ticket, api_key)
+        elif data_type == 'snmp_devices':
+            success, count, error = sync_snmp_devices(db, SNMPDevice, api_key)
+        elif data_type == 'tcp_devices':
+            success, count, error = sync_tcp_devices(db, TCPDevice, api_key)
+        elif data_type == 'knowledge_base':
+            success, count, error = sync_knowledge_base(db, KnowledgeBase, api_key)
+        elif data_type == 'products':
+            success, count, error = sync_products(db, Product, api_key)
+        elif data_type == 'expenses':
+            success, count, error = sync_expenses(db, Expense, api_key)
+        elif data_type == 'http_devices':
+            success, count, error = sync_http_devices(db, HTTPDevice, api_key)
+        elif data_type == 'generic_devices':
+            success, count, error = sync_generic_devices(db, GenericDevice, api_key)
+        elif data_type == 'departments':
+            success, count, error = sync_departments(db, Department, api_key)
+        elif data_type == 'account':
+            success, count, error = sync_account(db, Account, api_key)
+        elif data_type == 'ticket_comments':
+            success, count, error = sync_ticket_comments(db, TicketComment, Ticket, api_key)
+        elif data_type == 'ticket_workhours':
+            success, count, error = sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key)
+        elif data_type == 'agent_patches':
+            success, count, error = sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_key)
+        elif data_type == 'custom_field_definitions':
+            success, count, error = sync_custom_field_definitions(db, CustomFieldDefinition, api_key)
+        else:
+            flash(f'Unknown data type: {data_type}', 'danger')
+            return redirect(url_for('export_home'))
+
+        if success:
+            flash(f'Successfully synced {count} {data_type}', 'success')
+        else:
+            flash(f'Error syncing {data_type}: {error}', 'danger')
+
+    except Exception as e:
+        app.logger.error(f"Error syncing {data_type}: {str(e)}")
+        flash(f'Error syncing {data_type}: {str(e)}', 'danger')
+
+    return redirect(url_for('export_home'))
+
+def run_sync_all_background(api_key):
+    """Background worker function to sync all data types"""
+    from data_sync import (sync_customers, sync_agents, sync_alerts,
+                           sync_contacts, sync_contracts, sync_invoices, sync_tickets,
+                           sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
+                           sync_products, sync_expenses, sync_http_devices,
+                           sync_generic_devices, sync_departments, sync_account,
+                           sync_ticket_comments, sync_ticket_workhours, sync_agent_patches,
+                           sync_custom_field_definitions)
+
+    global sync_status
+
+    with sync_status_lock:
+        sync_status['running'] = True
+        sync_status['total_synced'] = 0
+        sync_status['errors'] = []
+        sync_status['start_time'] = datetime.now()
+
+    total_synced = 0
+    errors = []
+
+    # Define all sync operations
+    sync_operations = [
+        ('customers', lambda: sync_customers(db, Customer, api_key)),
+        ('agents', lambda: sync_agents(db, Agent, api_key)),
+        ('alerts', lambda: sync_alerts(db, Alert, api_key)),
+        ('contacts', lambda: sync_contacts(db, Contact, api_key)),
+        ('contracts', lambda: sync_contracts(db, Contract, api_key)),
+        ('invoices', lambda: sync_invoices(db, Invoice, api_key)),
+        ('tickets', lambda: sync_tickets(db, Ticket, api_key)),
+        ('snmp_devices', lambda: sync_snmp_devices(db, SNMPDevice, api_key)),
+        ('tcp_devices', lambda: sync_tcp_devices(db, TCPDevice, api_key)),
+        ('http_devices', lambda: sync_http_devices(db, HTTPDevice, api_key)),
+        ('generic_devices', lambda: sync_generic_devices(db, GenericDevice, api_key)),
+        ('knowledge_base', lambda: sync_knowledge_base(db, KnowledgeBase, api_key)),
+        ('products', lambda: sync_products(db, Product, api_key)),
+        ('expenses', lambda: sync_expenses(db, Expense, api_key)),
+        ('departments', lambda: sync_departments(db, Department, api_key)),
+        ('account', lambda: sync_account(db, Account, api_key)),
+        ('ticket_comments', lambda: sync_ticket_comments(db, TicketComment, Ticket, api_key)),
+        ('ticket_workhours', lambda: sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key)),
+        ('agent_patches', lambda: sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_key)),
+        ('custom_field_definitions', lambda: sync_custom_field_definitions(db, CustomFieldDefinition, api_key))
+    ]
+
+    # Execute all syncs
+    for idx, (data_type, sync_func) in enumerate(sync_operations, 1):
+        try:
+            with sync_status_lock:
+                sync_status['progress'] = f"Syncing {data_type} ({idx}/{len(sync_operations)})"
+
+            app.logger.info(f"Starting sync for {data_type}")
+            success, count, error = sync_func()
+
+            if success:
+                total_synced += count
+                app.logger.info(f"Synced {count} {data_type}")
+            else:
+                errors.append(f"{data_type}: {error}")
+                app.logger.error(f"Failed to sync {data_type}: {error}")
+        except Exception as e:
+            errors.append(f"{data_type}: {str(e)}")
+            app.logger.error(f"Error syncing {data_type}: {str(e)}")
+
+    # Update final status
+    with sync_status_lock:
+        sync_status['running'] = False
+        sync_status['total_synced'] = total_synced
+        sync_status['errors'] = errors
+        sync_status['progress'] = 'Completed'
+
+    app.logger.info(f"Sync all completed: {total_synced} total records, {len(errors)} errors")
+
+
+@app.route('/sync/all')
+@login_required
+def sync_all_data():
+    """Sync all data types from Atera in background"""
+    global sync_status
+
+    # Check if sync is already running
+    with sync_status_lock:
+        if sync_status['running']:
+            flash('Sync is already running. Please wait for it to complete.', 'warning')
+            return redirect(url_for('export_home'))
+
+    # Get API key from settings
+    api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
+    if not api_key:
+        flash('Atera API key not configured', 'danger')
+        return redirect(url_for('export_home'))
+
+    # Start sync in background thread
+    sync_thread = threading.Thread(
+        target=run_sync_all_background,
+        args=(api_key,),
+        daemon=True
+    )
+    sync_thread.start()
+
+    flash('Sync started in background. This may take several minutes. Check back shortly for results.', 'info')
+    return redirect(url_for('export_home'))
+
+
+@app.route('/sync/status')
+@login_required
+def sync_status_endpoint():
+    """Get current sync status as JSON"""
+    global sync_status
+
+    with sync_status_lock:
+        status_copy = sync_status.copy()
+        # Convert datetime to string for JSON serialization
+        if status_copy['start_time']:
+            status_copy['start_time'] = status_copy['start_time'].isoformat()
+
+    return jsonify(status_copy)
+
+
+@app.route('/export/all/<export_format>')
+@login_required
+def export_all_data(export_format):
+    """Export all data types in a ZIP file"""
+    from export_utils import export_models
+    import zipfile
+    from io import BytesIO
+
+    try:
+        # Create ZIP file in memory
+        zip_buffer = BytesIO()
+
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # Define all data types
+            exports = [
+                ('customers', Customer.query.all()),
+                ('agents', Agent.query.all()),
+                ('alerts', Alert.query.all()),
+                ('contacts', Contact.query.all()),
+                ('contracts', Contract.query.all()),
+                ('invoices', Invoice.query.all()),
+                ('tickets', Ticket.query.all()),
+                ('snmp_devices', SNMPDevice.query.all()),
+                ('tcp_devices', TCPDevice.query.all()),
+                ('http_devices', HTTPDevice.query.all()),
+                ('generic_devices', GenericDevice.query.all()),
+                ('knowledge_base', KnowledgeBase.query.all()),
+                ('products', Product.query.all()),
+                ('expenses', Expense.query.all()),
+                ('departments', Department.query.all()),
+                ('account', [Account.query.first()] if Account.query.first() else []),
+                ('ticket_comments', TicketComment.query.all()),
+                ('ticket_workhours', TicketWorkHour.query.all()),
+                ('agent_installed_patches', AgentInstalledPatch.query.all()),
+                ('agent_available_patches', AgentAvailablePatch.query.all()),
+                ('custom_field_definitions', CustomFieldDefinition.query.all())
+            ]
+
+            total_exported = 0
+            for data_type, data in exports:
+                if data:
+                    bytes_buffer, filename, count, error = export_models(data, data_type, export_format, exclude_fields=['id'])
+                    if bytes_buffer:
+                        zip_file.writestr(filename, bytes_buffer.read())
+                        total_exported += count
+                        app.logger.info(f"Added {data_type} to ZIP: {count} records")
+
+        # Prepare ZIP for download
+        zip_buffer.seek(0)
+
+        # Log the bulk export
+        export_log = ExportLog(
+            export_type='all',
+            export_format=export_format,
+            file_path=f'all_data_{datetime.now().strftime("%Y%m%d_%H%M%S")}.zip',
+            record_count=total_exported,
+            status='success',
+            error_message=None,
+            created_by=current_user.username,
+            created_at=datetime.now()
+        )
+        db.session.add(export_log)
+        db.session.commit()
+
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        return send_file(
+            zip_buffer,
+            mimetype='application/zip',
+            as_attachment=True,
+            download_name=f'atera_all_data_{timestamp}.zip'
+        )
+
+    except Exception as e:
+        app.logger.error(f"Error exporting all data: {str(e)}")
+        flash(f'Error exporting all data: {str(e)}', 'danger')
+        return redirect(url_for('export_home'))
+
+@app.route('/export/<data_type>/<export_format>')
+@login_required
+def export_data(data_type, export_format):
+    """Export data to specified format and serve as download"""
+    from export_utils import export_models
+
+    try:
+        # Get the appropriate model and data
+        if data_type == 'tickets':
+            data = Ticket.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'customers':
+            data = Customer.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'agents':
+            data = Agent.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'alerts':
+            data = Alert.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'contacts':
+            data = Contact.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'contracts':
+            data = Contract.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'invoices':
+            data = Invoice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'snmp_devices':
+            data = SNMPDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'tcp_devices':
+            data = TCPDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'knowledge_base':
+            data = KnowledgeBase.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'products':
+            data = Product.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'expenses':
+            data = Expense.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'http_devices':
+            data = HTTPDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'generic_devices':
+            data = GenericDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'departments':
+            data = Department.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'account':
+            account = Account.query.first()
+            data = [account] if account else []
+            exclude_fields = ['id']
+        elif data_type == 'ticket_comments':
+            data = TicketComment.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'ticket_workhours':
+            data = TicketWorkHour.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'agent_installed_patches':
+            data = AgentInstalledPatch.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'agent_available_patches':
+            data = AgentAvailablePatch.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'custom_field_definitions':
+            data = CustomFieldDefinition.query.all()
+            exclude_fields = ['id']
+        else:
+            flash(f'Unknown data type: {data_type}', 'danger')
+            return redirect(url_for('export_home'))
+
+        # Perform export (now returns BytesIO buffer)
+        bytes_buffer, filename, count, error = export_models(data, data_type, export_format, exclude_fields)
+
+        # Log the export
+        export_log = ExportLog(
+            export_type=data_type,
+            export_format=export_format,
+            file_path=filename if bytes_buffer else None,  # Just store filename for history
+            record_count=count,
+            status='success' if bytes_buffer else 'failed',
+            error_message=error,
+            created_by=current_user.username,
+            created_at=datetime.now()
+        )
+        db.session.add(export_log)
+        db.session.commit()
+
+        if bytes_buffer:
+            # Determine mimetype based on format
+            mimetypes = {
+                'csv': 'text/csv',
+                'json': 'application/json',
+                'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            }
+            mimetype = mimetypes.get(export_format, 'application/octet-stream')
+
+            # Serve file directly from memory
+            return send_file(
+                bytes_buffer,
+                mimetype=mimetype,
+                as_attachment=True,
+                download_name=filename
+            )
+        else:
+            flash(f'Error exporting {data_type}: {error}', 'danger')
+            return redirect(url_for('export_home'))
+
+    except Exception as e:
+        app.logger.error(f"Error exporting {data_type}: {str(e)}")
+        flash(f'Error exporting {data_type}: {str(e)}', 'danger')
+        return redirect(url_for('export_home'))
+
+@app.route('/view/<data_type>')
+@login_required
+def view_data(data_type):
+    """View data in the browser"""
+    try:
+        if data_type == 'customers':
+            data = Customer.query.order_by(Customer.synced_at.desc()).limit(100).all()
+        elif data_type == 'agents':
+            data = Agent.query.order_by(Agent.synced_at.desc()).limit(100).all()
+        elif data_type == 'alerts':
+            data = Alert.query.order_by(Alert.created_at.desc()).limit(100).all()
+        elif data_type == 'contacts':
+            data = Contact.query.order_by(Contact.synced_at.desc()).limit(100).all()
+        elif data_type == 'contracts':
+            data = Contract.query.order_by(Contract.synced_at.desc()).limit(100).all()
+        elif data_type == 'invoices':
+            data = Invoice.query.order_by(Invoice.synced_at.desc()).limit(100).all()
+        elif data_type == 'tickets':
+            data = Ticket.query.order_by(Ticket.created_at.desc()).limit(100).all()
+        elif data_type == 'snmp_devices':
+            data = SNMPDevice.query.order_by(SNMPDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'tcp_devices':
+            data = TCPDevice.query.order_by(TCPDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'knowledge_base':
+            data = KnowledgeBase.query.order_by(KnowledgeBase.synced_at.desc()).limit(100).all()
+        elif data_type == 'products':
+            data = Product.query.order_by(Product.synced_at.desc()).limit(100).all()
+        elif data_type == 'expenses':
+            data = Expense.query.order_by(Expense.synced_at.desc()).limit(100).all()
+        elif data_type == 'http_devices':
+            data = HTTPDevice.query.order_by(HTTPDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'generic_devices':
+            data = GenericDevice.query.order_by(GenericDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'departments':
+            data = Department.query.order_by(Department.synced_at.desc()).limit(100).all()
+        elif data_type == 'account':
+            account = Account.query.first()
+            data = [account] if account else []
+        elif data_type == 'ticket_comments':
+            data = TicketComment.query.order_by(TicketComment.synced_at.desc()).limit(100).all()
+        elif data_type == 'ticket_workhours':
+            data = TicketWorkHour.query.order_by(TicketWorkHour.synced_at.desc()).limit(100).all()
+        elif data_type == 'agent_installed_patches':
+            data = AgentInstalledPatch.query.order_by(AgentInstalledPatch.synced_at.desc()).limit(100).all()
+        elif data_type == 'agent_available_patches':
+            data = AgentAvailablePatch.query.order_by(AgentAvailablePatch.synced_at.desc()).limit(100).all()
+        elif data_type == 'custom_field_definitions':
+            data = CustomFieldDefinition.query.order_by(CustomFieldDefinition.synced_at.desc()).limit(100).all()
+        else:
+            flash(f'Unknown data type: {data_type}', 'danger')
+            return redirect(url_for('export_home'))
+
+        return render_template('view_data.html', data_type=data_type, data=data)
+
+    except Exception as e:
+        app.logger.error(f"Error viewing {data_type}: {str(e)}")
+        flash(f'Error viewing {data_type}: {str(e)}', 'danger')
+        return redirect(url_for('export_home'))
+
+# Create database tables and default admin user
 with app.app_context():
     db.create_all()
+
+    # Create default admin user if no users exist
+    if User.query.count() == 0:
+        default_admin = User(
+            username='admin',
+            password='admin',
+            is_admin=True
+        )
+        db.session.add(default_admin)
+        db.session.commit()
+        app.logger.info("Created default admin user (username: admin, password: admin)")
+        print("=" * 60)
+        print("DEFAULT ADMIN USER CREATED")
+        print("Username: admin")
+        print("Password: admin")
+        print("PLEASE CHANGE THE PASSWORD AFTER FIRST LOGIN!")
+        print("=" * 60)
 
 if __name__ == '__main__':
     app.run(debug=True)

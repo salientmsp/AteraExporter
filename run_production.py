@@ -13,6 +13,13 @@ HOST = '0.0.0.0'  # Listen on all interfaces
 if __name__ == '__main__':
     print(f"Starting On-Call Ticket Monitor in production mode on {HOST}:{PORT}")
     print("Press Ctrl+C to stop the server")
-    
-    # Start the server
-    serve(app, host=HOST, port=PORT, threads=4)
+
+    # Start the server with increased timeouts for long-running sync operations
+    serve(
+        app,
+        host=HOST,
+        port=PORT,
+        threads=4,
+        channel_timeout=600,  # 10 minutes for channel timeout
+        connection_rlimit=1000  # Max concurrent connections
+    )
