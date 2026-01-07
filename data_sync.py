@@ -261,6 +261,9 @@ def sync_contacts(db, Contact, api_key):
                     existing.in_ignore_mode = contact_data.get('InIgnoreMode', False)
                     existing.created_at = parse_atera_datetime(contact_data.get('CreatedOn'))
                     existing.synced_at = datetime.now()
+                    # Commit each contact individually to avoid losing all contacts if one fails
+                    db.session.commit()
+                    count += 1
                 else:
                     contact = Contact(
                         contact_id=contact_id,
@@ -279,6 +282,8 @@ def sync_contacts(db, Contact, api_key):
                     )
                     db.session.add(contact)
 
+                # Commit each contact individually to avoid losing all contacts if one fails
+                db.session.commit()
                 count += 1
 
             except Exception as e:
@@ -286,11 +291,12 @@ def sync_contacts(db, Contact, api_key):
                 logger.error(f"Error processing contact {contact_identifier}: {str(e)}", exc_info=True)
                 # Log the problematic contact data for debugging
                 logger.error(f"Problematic contact data: {contact_data}")
+                # Rollback the failed transaction
+                db.session.rollback()
                 skipped += 1
                 continue
 
-        db.session.commit()
-        logger.info(f"Successfully synced {count} contacts (skipped {skipped} contacts without IDs)")
+        logger.info(f"Successfully synced {count} contacts (skipped {skipped} contacts without IDs or errors)")
         return True, count, None
 
     except Exception as e:
