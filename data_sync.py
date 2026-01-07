@@ -246,10 +246,10 @@ def sync_contacts(db, Contact, api_key):
         skipped = 0
         for contact_data in contacts_data:
             try:
-                # Skip contacts without a valid ContactID
-                raw_contact_id = contact_data.get('ContactID')
+                # Skip contacts without a valid EndUserID
+                raw_contact_id = contact_data.get('EndUserID')
                 if not raw_contact_id:
-                    logger.warning(f"Skipping contact without ContactID: {contact_data.get('Email', 'unknown')}")
+                    logger.warning(f"Skipping contact without EndUserID: {contact_data.get('Email', 'unknown')}")
                     skipped += 1
                     continue
 
@@ -291,7 +291,7 @@ def sync_contacts(db, Contact, api_key):
                 count += 1
 
             except Exception as e:
-                contact_identifier = contact_data.get('ContactID', contact_data.get('Email', 'unknown'))
+                contact_identifier = contact_data.get('EndUserID', contact_data.get('Email', 'unknown'))
                 logger.error(f"Error processing contact {contact_identifier}: {str(e)}", exc_info=True)
                 # Log the problematic contact data for debugging
                 logger.error(f"Problematic contact data: {contact_data}")
