@@ -203,6 +203,75 @@ class Invoice(db.Model):
     created_at = db.Column(db.DateTime)
     synced_at = db.Column(db.DateTime, default=datetime.now)
 
+class SNMPDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    ip_address = db.Column(db.String(50))
+    snmp_version = db.Column(db.String(20))
+    device_type = db.Column(db.String(100))
+    system_name = db.Column(db.String(200))
+    system_location = db.Column(db.String(200))
+    system_contact = db.Column(db.String(200))
+    system_description = db.Column(db.Text)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class TCPDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    ip_address = db.Column(db.String(50))
+    port = db.Column(db.Integer)
+    device_type = db.Column(db.String(100))  # TCP, HTTP, Generic
+    monitoring_enabled = db.Column(db.Boolean, default=True)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class KnowledgeBase(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    article_id = db.Column(db.String(50), nullable=False, unique=True)
+    title = db.Column(db.String(500))
+    content = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    keywords = db.Column(db.Text)
+    created_by = db.Column(db.String(100))
+    last_modified_by = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime)
+    last_modified = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Product(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.String(50), nullable=False, unique=True)
+    product_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    category = db.Column(db.String(100))
+    rate = db.Column(db.Float)
+    rate_type = db.Column(db.String(50))  # hourly, monthly, one-time, etc.
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    expense_id = db.Column(db.String(50), nullable=False, unique=True)
+    expense_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    amount = db.Column(db.Float)
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    ticket_id = db.Column(db.String(50))
+    expense_date = db.Column(db.Date)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
 class ExportLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     export_type = db.Column(db.String(50), nullable=False)  # tickets, customers, agents, etc.

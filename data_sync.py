@@ -480,3 +480,276 @@ def sync_tickets(db, Ticket, api_key):
         logger.error(f"Error syncing tickets: {str(e)}")
         db.session.rollback()
         return False, 0, str(e)
+
+
+def sync_snmp_devices(db, SNMPDevice, api_key):
+    """Sync SNMP devices from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        devices_data = client.fetch_snmp_devices()
+
+        if devices_data is None:
+            return False, 0, "Failed to fetch SNMP devices from Atera API"
+
+        count = 0
+        for device_data in devices_data:
+            try:
+                device_id = str(device_data.get('SNMPDeviceID') or device_data.get('DeviceID'))
+                existing = SNMPDevice.query.filter_by(device_id=device_id).first()
+
+                if existing:
+                    existing.device_name = device_data.get('DeviceName', '')
+                    existing.customer_id = str(device_data.get('CustomerID', ''))
+                    existing.customer_name = device_data.get('CustomerName', '')
+                    existing.ip_address = device_data.get('IPAddress', '')
+                    existing.snmp_version = device_data.get('SNMPVersion', '')
+                    existing.device_type = device_data.get('DeviceType', '')
+                    existing.system_name = device_data.get('SystemName', '')
+                    existing.system_location = device_data.get('SystemLocation', '')
+                    existing.system_contact = device_data.get('SystemContact', '')
+                    existing.system_description = device_data.get('SystemDescription', '')
+                    existing.last_online = parse_atera_datetime(device_data.get('LastOnline'))
+                    existing.created_at = parse_atera_datetime(device_data.get('CreatedOn'))
+                    existing.synced_at = datetime.now()
+                else:
+                    device = SNMPDevice(
+                        device_id=device_id,
+                        device_name=device_data.get('DeviceName', ''),
+                        customer_id=str(device_data.get('CustomerID', '')),
+                        customer_name=device_data.get('CustomerName', ''),
+                        ip_address=device_data.get('IPAddress', ''),
+                        snmp_version=device_data.get('SNMPVersion', ''),
+                        device_type=device_data.get('DeviceType', ''),
+                        system_name=device_data.get('SystemName', ''),
+                        system_location=device_data.get('SystemLocation', ''),
+                        system_contact=device_data.get('SystemContact', ''),
+                        system_description=device_data.get('SystemDescription', ''),
+                        last_online=parse_atera_datetime(device_data.get('LastOnline')),
+                        created_at=parse_atera_datetime(device_data.get('CreatedOn')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(device)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing SNMP device {device_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} SNMP devices")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing SNMP devices: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_tcp_devices(db, TCPDevice, api_key):
+    """Sync TCP devices from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        devices_data = client.fetch_tcp_devices()
+
+        if devices_data is None:
+            return False, 0, "Failed to fetch TCP devices from Atera API"
+
+        count = 0
+        for device_data in devices_data:
+            try:
+                device_id = str(device_data.get('TCPDeviceID') or device_data.get('DeviceID'))
+                existing = TCPDevice.query.filter_by(device_id=device_id).first()
+
+                if existing:
+                    existing.device_name = device_data.get('DeviceName', '')
+                    existing.customer_id = str(device_data.get('CustomerID', ''))
+                    existing.customer_name = device_data.get('CustomerName', '')
+                    existing.ip_address = device_data.get('IPAddress', '')
+                    existing.port = device_data.get('Port', 0)
+                    existing.device_type = device_data.get('DeviceType', '')
+                    existing.monitoring_enabled = device_data.get('MonitoringEnabled', True)
+                    existing.last_online = parse_atera_datetime(device_data.get('LastOnline'))
+                    existing.created_at = parse_atera_datetime(device_data.get('CreatedOn'))
+                    existing.synced_at = datetime.now()
+                else:
+                    device = TCPDevice(
+                        device_id=device_id,
+                        device_name=device_data.get('DeviceName', ''),
+                        customer_id=str(device_data.get('CustomerID', '')),
+                        customer_name=device_data.get('CustomerName', ''),
+                        ip_address=device_data.get('IPAddress', ''),
+                        port=device_data.get('Port', 0),
+                        device_type=device_data.get('DeviceType', ''),
+                        monitoring_enabled=device_data.get('MonitoringEnabled', True),
+                        last_online=parse_atera_datetime(device_data.get('LastOnline')),
+                        created_at=parse_atera_datetime(device_data.get('CreatedOn')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(device)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing TCP device {device_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} TCP devices")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing TCP devices: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_knowledge_base(db, KnowledgeBase, api_key):
+    """Sync knowledge base articles from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        articles_data = client.fetch_knowledge_base()
+
+        if articles_data is None:
+            return False, 0, "Failed to fetch knowledge base from Atera API"
+
+        count = 0
+        for article_data in articles_data:
+            try:
+                article_id = str(article_data.get('ArticleID') or article_data.get('KnowledgeBaseID'))
+                existing = KnowledgeBase.query.filter_by(article_id=article_id).first()
+
+                if existing:
+                    existing.title = article_data.get('Title', '')
+                    existing.content = article_data.get('Content', '')
+                    existing.category = article_data.get('Category', '')
+                    existing.keywords = article_data.get('Keywords', '')
+                    existing.created_by = article_data.get('CreatedBy', '')
+                    existing.last_modified_by = article_data.get('LastModifiedBy', '')
+                    existing.created_at = parse_atera_datetime(article_data.get('CreatedOn'))
+                    existing.last_modified = parse_atera_datetime(article_data.get('LastModified'))
+                    existing.synced_at = datetime.now()
+                else:
+                    article = KnowledgeBase(
+                        article_id=article_id,
+                        title=article_data.get('Title', ''),
+                        content=article_data.get('Content', ''),
+                        category=article_data.get('Category', ''),
+                        keywords=article_data.get('Keywords', ''),
+                        created_by=article_data.get('CreatedBy', ''),
+                        last_modified_by=article_data.get('LastModifiedBy', ''),
+                        created_at=parse_atera_datetime(article_data.get('CreatedOn')),
+                        last_modified=parse_atera_datetime(article_data.get('LastModified')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(article)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing knowledge base article {article_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} knowledge base articles")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing knowledge base: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_products(db, Product, api_key):
+    """Sync products from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        products_data = client.fetch_products()
+
+        if products_data is None:
+            return False, 0, "Failed to fetch products from Atera API"
+
+        count = 0
+        for product_data in products_data:
+            try:
+                product_id = str(product_data.get('ProductID'))
+                existing = Product.query.filter_by(product_id=product_id).first()
+
+                if existing:
+                    existing.product_name = product_data.get('ProductName', '')
+                    existing.description = product_data.get('Description', '')
+                    existing.category = product_data.get('Category', '')
+                    existing.rate = product_data.get('Rate', 0.0)
+                    existing.rate_type = product_data.get('RateType', '')
+                    existing.active = product_data.get('Active', True)
+                    existing.created_at = parse_atera_datetime(product_data.get('CreatedOn'))
+                    existing.synced_at = datetime.now()
+                else:
+                    product = Product(
+                        product_id=product_id,
+                        product_name=product_data.get('ProductName', ''),
+                        description=product_data.get('Description', ''),
+                        category=product_data.get('Category', ''),
+                        rate=product_data.get('Rate', 0.0),
+                        rate_type=product_data.get('RateType', ''),
+                        active=product_data.get('Active', True),
+                        created_at=parse_atera_datetime(product_data.get('CreatedOn')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(product)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing product {product_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} products")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing products: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_expenses(db, Expense, api_key):
+    """Sync expenses from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        expenses_data = client.fetch_expenses()
+
+        if expenses_data is None:
+            return False, 0, "Failed to fetch expenses from Atera API"
+
+        count = 0
+        for expense_data in expenses_data:
+            try:
+                expense_id = str(expense_data.get('ExpenseID'))
+                existing = Expense.query.filter_by(expense_id=expense_id).first()
+
+                if existing:
+                    existing.expense_name = expense_data.get('ExpenseName', '')
+                    existing.description = expense_data.get('Description', '')
+                    existing.amount = expense_data.get('Amount', 0.0)
+                    existing.customer_id = str(expense_data.get('CustomerID', ''))
+                    existing.customer_name = expense_data.get('CustomerName', '')
+                    existing.ticket_id = str(expense_data.get('TicketID', ''))
+                    existing.expense_date = parse_atera_date(expense_data.get('ExpenseDate'))
+                    existing.created_at = parse_atera_datetime(expense_data.get('CreatedOn'))
+                    existing.synced_at = datetime.now()
+                else:
+                    expense = Expense(
+                        expense_id=expense_id,
+                        expense_name=expense_data.get('ExpenseName', ''),
+                        description=expense_data.get('Description', ''),
+                        amount=expense_data.get('Amount', 0.0),
+                        customer_id=str(expense_data.get('CustomerID', '')),
+                        customer_name=expense_data.get('CustomerName', ''),
+                        ticket_id=str(expense_data.get('TicketID', '')),
+                        expense_date=parse_atera_date(expense_data.get('ExpenseDate')),
+                        created_at=parse_atera_datetime(expense_data.get('CreatedOn')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(expense)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing expense {expense_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} expenses")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing expenses: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)

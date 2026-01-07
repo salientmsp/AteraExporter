@@ -170,6 +170,31 @@ class AteraAPIClient:
         logger.info("Fetching all tickets from Atera")
         return self._fetch_paginated('/tickets')
 
+    def fetch_snmp_devices(self):
+        """Fetch all SNMP devices from Atera"""
+        logger.info("Fetching SNMP devices from Atera")
+        return self._fetch_paginated('/devices/snmpdevices')
+
+    def fetch_tcp_devices(self):
+        """Fetch all TCP devices from Atera"""
+        logger.info("Fetching TCP devices from Atera")
+        return self._fetch_paginated('/devices/tcpdevices')
+
+    def fetch_knowledge_base(self):
+        """Fetch all knowledge base articles from Atera"""
+        logger.info("Fetching knowledge base articles from Atera")
+        return self._fetch_paginated('/knowledgebases')
+
+    def fetch_products(self):
+        """Fetch all products/rates from Atera"""
+        logger.info("Fetching products from Atera")
+        return self._fetch_paginated('/rates/products')
+
+    def fetch_expenses(self):
+        """Fetch all expenses from Atera"""
+        logger.info("Fetching expenses from Atera")
+        return self._fetch_paginated('/rates/expenses')
+
 
 def parse_atera_datetime(date_string):
     """
