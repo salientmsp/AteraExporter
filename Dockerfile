@@ -27,10 +27,10 @@ COPY . .
 # Create a non-root user first
 RUN useradd -m -u 1000 appuser
 
-# Create necessary directories and set ownership
-RUN mkdir -p data exports && \
+# Create data directory and set ownership
+RUN mkdir -p data && \
     chown -R appuser:appuser /app && \
-    chmod -R 755 /app/data /app/exports
+    chmod -R 755 /app/data
 
 # Switch to non-root user
 USER appuser

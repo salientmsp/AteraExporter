@@ -20,10 +20,6 @@ build/
 *.db
 oncall.db
 
-# Exports
-exports/*
-!exports/.gitkeep
-
 # Environment
 .env
 .env.local

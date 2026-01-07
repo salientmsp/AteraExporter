@@ -1,32 +1,28 @@
 """
 Export Utilities Module
 Handles exporting data to various formats (CSV, JSON, Excel)
+All exports are generated in-memory and returned as BytesIO objects
 """
 
 import csv
 import json
-import os
+from io import BytesIO, StringIO
 from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
-# Create exports directory if it doesn't exist
-EXPORT_DIR = 'exports'
-if not os.path.exists(EXPORT_DIR):
-    os.makedirs(EXPORT_DIR)
-
 
 def generate_filename(data_type, export_format):
     """
-    Generate a filename for the export
+    Generate a filename for the export (for download headers)
 
     Args:
         data_type: Type of data being exported (e.g., 'customers', 'tickets')
         export_format: Format of export ('csv', 'json', 'excel')
 
     Returns:
-        Full file path
+        Filename string (no path)
     """
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"{data_type}_{timestamp}.{export_format}"
@@ -34,82 +30,90 @@ def generate_filename(data_type, export_format):
     if export_format == 'excel':
         filename = f"{data_type}_{timestamp}.xlsx"
 
-    return os.path.join(EXPORT_DIR, filename)
+    return filename
 
 
-def export_to_csv(data, filename, fieldnames=None):
+def export_to_csv(data, fieldnames=None):
     """
-    Export data to CSV format
+    Export data to CSV format in-memory
 
     Args:
         data: List of dictionaries to export
-        filename: Output filename
         fieldnames: Optional list of field names (columns)
 
     Returns:
-        True on success, False on failure
+        BytesIO object containing CSV data, or None on failure
     """
     try:
         if not data:
             logger.warning("No data to export to CSV")
-            return False
+            return None
 
         # If fieldnames not provided, use keys from first item
         if fieldnames is None:
             fieldnames = list(data[0].keys())
 
-        with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
-            writer = csv.DictWriter(csvfile, fieldnames=fieldnames, extrasaction='ignore')
-            writer.writeheader()
-            writer.writerows(data)
+        # Create StringIO for CSV writing
+        string_buffer = StringIO()
+        writer = csv.DictWriter(string_buffer, fieldnames=fieldnames, extrasaction='ignore')
+        writer.writeheader()
+        writer.writerows(data)
 
-        logger.info(f"Successfully exported {len(data)} records to CSV: {filename}")
-        return True
+        # Convert to BytesIO for Flask send_file
+        bytes_buffer = BytesIO()
+        bytes_buffer.write(string_buffer.getvalue().encode('utf-8'))
+        bytes_buffer.seek(0)
+
+        logger.info(f"Successfully generated CSV with {len(data)} records")
+        return bytes_buffer
 
     except Exception as e:
         logger.error(f"Error exporting to CSV: {str(e)}")
-        return False
+        return None
 
 
-def export_to_json(data, filename, indent=2):
+def export_to_json(data, indent=2):
     """
-    Export data to JSON format
+    Export data to JSON format in-memory
 
     Args:
         data: Data to export (list or dict)
-        filename: Output filename
         indent: JSON indentation level
 
     Returns:
-        True on success, False on failure
+        BytesIO object containing JSON data, or None on failure
     """
     try:
         if not data:
             logger.warning("No data to export to JSON")
-            return False
+            return None
 
-        with open(filename, 'w', encoding='utf-8') as jsonfile:
-            json.dump(data, jsonfile, indent=indent, default=str)
+        # Generate JSON string
+        json_string = json.dumps(data, indent=indent, default=str)
 
-        logger.info(f"Successfully exported data to JSON: {filename}")
-        return True
+        # Convert to BytesIO for Flask send_file
+        bytes_buffer = BytesIO()
+        bytes_buffer.write(json_string.encode('utf-8'))
+        bytes_buffer.seek(0)
+
+        logger.info(f"Successfully generated JSON export")
+        return bytes_buffer
 
     except Exception as e:
         logger.error(f"Error exporting to JSON: {str(e)}")
-        return False
+        return None
 
 
-def export_to_excel(data, filename, sheet_name='Data'):
+def export_to_excel(data, sheet_name='Data'):
     """
-    Export data to Excel format
+    Export data to Excel format in-memory
 
     Args:
         data: List of dictionaries to export
-        filename: Output filename
         sheet_name: Name of the Excel sheet
 
     Returns:
-        True on success, False on failure
+        BytesIO object containing Excel data, or None on failure
     """
     try:
         # Import openpyxl for Excel support
@@ -118,11 +122,11 @@ def export_to_excel(data, filename, sheet_name='Data'):
             from openpyxl.styles import Font, PatternFill
         except ImportError:
             logger.error("openpyxl not installed. Install with: pip install openpyxl")
-            return False
+            return None
 
         if not data:
             logger.warning("No data to export to Excel")
-            return False
+            return None
 
         # Create workbook and sheet
         wb = Workbook()
@@ -161,15 +165,17 @@ def export_to_excel(data, filename, sheet_name='Data'):
             adjusted_width = min(max_length + 2, 50)
             ws.column_dimensions[column_letter].width = adjusted_width
 
-        # Save workbook
-        wb.save(filename)
+        # Save workbook to BytesIO
+        bytes_buffer = BytesIO()
+        wb.save(bytes_buffer)
+        bytes_buffer.seek(0)
 
-        logger.info(f"Successfully exported {len(data)} records to Excel: {filename}")
-        return True
+        logger.info(f"Successfully generated Excel with {len(data)} records")
+        return bytes_buffer
 
     except Exception as e:
         logger.error(f"Error exporting to Excel: {str(e)}")
-        return False
+        return None
 
 
 def model_to_dict(model_instance, exclude_fields=None):
@@ -214,7 +220,7 @@ def models_to_list(model_instances, exclude_fields=None):
 
 def export_models(model_instances, data_type, export_format, exclude_fields=None):
     """
-    Export SQLAlchemy models to specified format
+    Export SQLAlchemy models to specified format in-memory
 
     Args:
         model_instances: List of SQLAlchemy model instances
@@ -223,11 +229,12 @@ def export_models(model_instances, data_type, export_format, exclude_fields=None
         exclude_fields: Fields to exclude from export
 
     Returns:
-        Tuple of (success, filename, record_count, error_message)
+        Tuple of (bytes_buffer, filename, record_count, error_message)
+        bytes_buffer will be None if export fails
     """
     try:
         if not model_instances:
-            return False, None, 0, "No data to export"
+            return None, None, 0, "No data to export"
 
         # Convert models to dictionaries
         data = models_to_list(model_instances, exclude_fields)
@@ -237,19 +244,19 @@ def export_models(model_instances, data_type, export_format, exclude_fields=None
 
         # Export based on format
         if export_format == 'csv':
-            success = export_to_csv(data, filename)
+            bytes_buffer = export_to_csv(data)
         elif export_format == 'json':
-            success = export_to_json(data, filename)
+            bytes_buffer = export_to_json(data)
         elif export_format == 'excel':
-            success = export_to_excel(data, filename)
+            bytes_buffer = export_to_excel(data)
         else:
-            return False, None, 0, f"Unsupported export format: {export_format}"
+            return None, None, 0, f"Unsupported export format: {export_format}"
 
-        if success:
-            return True, filename, len(data), None
+        if bytes_buffer:
+            return bytes_buffer, filename, len(data), None
         else:
-            return False, None, 0, "Export failed"
+            return None, None, 0, "Export failed"
 
     except Exception as e:
         logger.error(f"Error in export_models: {str(e)}")
-        return False, None, 0, str(e)
+        return None, None, 0, str(e)

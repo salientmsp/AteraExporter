@@ -77,9 +77,9 @@ You can deploy this application in two ways:
 Pull and run the latest image:
 
 ```bash
-# Create directories with proper permissions
-mkdir -p data exports
-chmod 777 data exports  # Or: sudo chown 1000:1000 data exports
+# Create data directory with proper permissions
+mkdir -p data
+chmod 777 data  # Or: sudo chown 1000:1000 data
 
 # Pull and run
 docker pull ghcr.io/salientmsp/ateraexporter:latest
@@ -88,31 +88,31 @@ docker run -d \
   --name atera-exporter \
   -p 8000:8000 \
   -v $(pwd)/data:/app/data \
-  -v $(pwd)/exports:/app/exports \
   -e SECRET_KEY=your-secret-key \
   ghcr.io/salientmsp/ateraexporter:latest
 ```
 
-**Important:** The container runs as a non-root user (UID 1000) for security. Ensure the `data` and `exports` directories are writable by this user.
+**Important:** The container runs as a non-root user (UID 1000) for security. Ensure the `data` directory is writable by this user.
 
 ### Building Your Own Docker Image
 
 ```bash
 docker build -t atera-exporter .
 
-# Create directories first
-mkdir -p data exports
-chmod 777 data exports
+# Create data directory
+mkdir -p data
+chmod 777 data
 
 # Run the container
-docker run -d -p 8000:8000 -v $(pwd)/data:/app/data -v $(pwd)/exports:/app/exports atera-exporter
+docker run -d -p 8000:8000 -v $(pwd)/data:/app/data atera-exporter
 ```
 
 ### Docker Volumes
 
-The application uses the following volumes:
+The application uses the following volume:
 - `/app/data` - Database storage (persist your data)
-- `/app/exports` - Export files location
+
+**Note:** Exports are generated in-memory and downloaded directly to your browser, so no volume mount is needed for exports.
 
 ### Docker Environment Variables
 
@@ -146,9 +146,6 @@ docker-compose up -d
 ```bash
 # Backup database
 cp data/oncall.db data/oncall.db.backup
-
-# Backup exports
-tar -czf exports-backup.tar.gz exports/
 ```
 
 ---
@@ -357,9 +354,8 @@ To export data to a file:
 
 1. Choose the data type you want to export
 2. Click on one of the export format buttons (CSV, JSON, or Excel)
-3. The application will create the export file in the `exports/` directory
-4. You'll see a success message with the filename
-5. All exports are logged in the "Recent Exports" section
+3. The file will be generated in-memory and downloaded directly to your browser
+4. All exports are logged in the "Recent Exports" section for tracking
 
 ### Export Formats
 
@@ -367,9 +363,9 @@ To export data to a file:
 - **JSON**: JavaScript Object Notation, ideal for programmatic use or API integrations
 - **Excel (XLSX)**: Microsoft Excel format with formatted headers and auto-sized columns
 
-### Export Files Location
+### Export File Naming
 
-All export files are saved in the `exports/` directory in the application root. The filename format is:
+Downloaded files follow this naming convention:
 
 ```
 {data_type}_{timestamp}.{format}
@@ -377,12 +373,14 @@ All export files are saved in the `exports/` directory in the application root. 
 
 Example: `customers_20260107_143052.csv`
 
+**Note:** Files are generated on-demand and served directly to your browser without being stored on the server, eliminating the need for disk space management and permission issues.
+
 ### Best Practices
 
 1. **Regular Syncing**: Sync your data regularly to ensure exports contain the latest information
 2. **Check Before Export**: Use the "View Data" feature to verify data before exporting
-3. **Organize Exports**: Regularly move or archive old export files from the `exports/` directory
-4. **Monitor Export History**: Check the "Recent Exports" section to track your export activity
+3. **Monitor Export History**: Check the "Recent Exports" section to track your export activity
+4. **Save Important Exports**: Since exports are downloaded directly, remember to save important exports to your preferred location
 
 ## Security Considerations
 

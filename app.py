@@ -1333,7 +1333,7 @@ def sync_data(data_type):
 @app.route('/export/<data_type>/<export_format>')
 @login_required
 def export_data(data_type, export_format):
-    """Export data to specified format"""
+    """Export data to specified format and serve as download"""
     from export_utils import export_models
 
     try:
@@ -1363,16 +1363,16 @@ def export_data(data_type, export_format):
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
 
-        # Perform export
-        success, filename, count, error = export_models(data, data_type, export_format, exclude_fields)
+        # Perform export (now returns BytesIO buffer)
+        bytes_buffer, filename, count, error = export_models(data, data_type, export_format, exclude_fields)
 
         # Log the export
         export_log = ExportLog(
             export_type=data_type,
             export_format=export_format,
-            file_path=filename if success else None,
+            file_path=filename if bytes_buffer else None,  # Just store filename for history
             record_count=count,
-            status='success' if success else 'failed',
+            status='success' if bytes_buffer else 'failed',
             error_message=error,
             created_by=current_user.username,
             created_at=datetime.now()
@@ -1380,16 +1380,30 @@ def export_data(data_type, export_format):
         db.session.add(export_log)
         db.session.commit()
 
-        if success:
-            flash(f'Successfully exported {count} {data_type} to {export_format.upper()}. File: {filename}', 'success')
+        if bytes_buffer:
+            # Determine mimetype based on format
+            mimetypes = {
+                'csv': 'text/csv',
+                'json': 'application/json',
+                'excel': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            }
+            mimetype = mimetypes.get(export_format, 'application/octet-stream')
+
+            # Serve file directly from memory
+            return send_file(
+                bytes_buffer,
+                mimetype=mimetype,
+                as_attachment=True,
+                download_name=filename
+            )
         else:
             flash(f'Error exporting {data_type}: {error}', 'danger')
+            return redirect(url_for('export_home'))
 
     except Exception as e:
         app.logger.error(f"Error exporting {data_type}: {str(e)}")
         flash(f'Error exporting {data_type}: {str(e)}', 'danger')
-
-    return redirect(url_for('export_home'))
+        return redirect(url_for('export_home'))
 
 @app.route('/view/<data_type>')
 @login_required
