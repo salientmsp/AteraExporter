@@ -195,6 +195,21 @@ class AteraAPIClient:
         logger.info("Fetching expenses from Atera")
         return self._fetch_paginated('/rates/expenses')
 
+    def fetch_http_devices(self):
+        """Fetch all HTTP devices from Atera"""
+        logger.info("Fetching HTTP devices from Atera")
+        return self._fetch_paginated('/devices/httpdevices')
+
+    def fetch_generic_devices(self):
+        """Fetch all Generic devices from Atera"""
+        logger.info("Fetching Generic devices from Atera")
+        return self._fetch_paginated('/devices/genericdevices')
+
+    def fetch_departments(self):
+        """Fetch all departments from Atera"""
+        logger.info("Fetching departments from Atera")
+        return self._fetch_paginated('/departments')
+
 
 def parse_atera_datetime(date_string):
     """

@@ -753,3 +753,148 @@ def sync_expenses(db, Expense, api_key):
         logger.error(f"Error syncing expenses: {str(e)}")
         db.session.rollback()
         return False, 0, str(e)
+
+
+def sync_http_devices(db, HTTPDevice, api_key):
+    """Sync HTTP devices from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        devices_data = client.fetch_http_devices()
+
+        if devices_data is None:
+            return False, 0, "Failed to fetch HTTP devices from Atera API"
+
+        count = 0
+        for device_data in devices_data:
+            try:
+                device_id = str(device_data.get('HTTPDeviceID') or device_data.get('DeviceID'))
+                existing = HTTPDevice.query.filter_by(device_id=device_id).first()
+
+                if existing:
+                    existing.device_name = device_data.get('DeviceName', '')
+                    existing.customer_id = str(device_data.get('CustomerID', ''))
+                    existing.customer_name = device_data.get('CustomerName', '')
+                    existing.url = device_data.get('URL', '')
+                    existing.expected_response = device_data.get('ExpectedResponse', '')
+                    existing.monitoring_enabled = device_data.get('MonitoringEnabled', True)
+                    existing.last_online = parse_atera_datetime(device_data.get('LastOnline'))
+                    existing.created_at = parse_atera_datetime(device_data.get('CreatedOn'))
+                    existing.synced_at = datetime.now()
+                else:
+                    device = HTTPDevice(
+                        device_id=device_id,
+                        device_name=device_data.get('DeviceName', ''),
+                        customer_id=str(device_data.get('CustomerID', '')),
+                        customer_name=device_data.get('CustomerName', ''),
+                        url=device_data.get('URL', ''),
+                        expected_response=device_data.get('ExpectedResponse', ''),
+                        monitoring_enabled=device_data.get('MonitoringEnabled', True),
+                        last_online=parse_atera_datetime(device_data.get('LastOnline')),
+                        created_at=parse_atera_datetime(device_data.get('CreatedOn')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(device)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing HTTP device {device_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} HTTP devices")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing HTTP devices: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_generic_devices(db, GenericDevice, api_key):
+    """Sync Generic devices from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        devices_data = client.fetch_generic_devices()
+
+        if devices_data is None:
+            return False, 0, "Failed to fetch Generic devices from Atera API"
+
+        count = 0
+        for device_data in devices_data:
+            try:
+                device_id = str(device_data.get('GenericDeviceID') or device_data.get('DeviceID'))
+                existing = GenericDevice.query.filter_by(device_id=device_id).first()
+
+                if existing:
+                    existing.device_name = device_data.get('DeviceName', '')
+                    existing.customer_id = str(device_data.get('CustomerID', ''))
+                    existing.customer_name = device_data.get('CustomerName', '')
+                    existing.monitoring_enabled = device_data.get('MonitoringEnabled', True)
+                    existing.last_online = parse_atera_datetime(device_data.get('LastOnline'))
+                    existing.created_at = parse_atera_datetime(device_data.get('CreatedOn'))
+                    existing.synced_at = datetime.now()
+                else:
+                    device = GenericDevice(
+                        device_id=device_id,
+                        device_name=device_data.get('DeviceName', ''),
+                        customer_id=str(device_data.get('CustomerID', '')),
+                        customer_name=device_data.get('CustomerName', ''),
+                        monitoring_enabled=device_data.get('MonitoringEnabled', True),
+                        last_online=parse_atera_datetime(device_data.get('LastOnline')),
+                        created_at=parse_atera_datetime(device_data.get('CreatedOn')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(device)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing Generic device {device_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} Generic devices")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing Generic devices: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)
+
+
+def sync_departments(db, Department, api_key):
+    """Sync departments from Atera API to database"""
+    try:
+        client = AteraAPIClient(api_key)
+        departments_data = client.fetch_departments()
+
+        if departments_data is None:
+            return False, 0, "Failed to fetch departments from Atera API"
+
+        count = 0
+        for department_data in departments_data:
+            try:
+                department_id = str(department_data.get('DepartmentID'))
+                existing = Department.query.filter_by(department_id=department_id).first()
+
+                if existing:
+                    existing.department_name = department_data.get('DepartmentName', '')
+                    existing.description = department_data.get('Description', '')
+                    existing.created_at = parse_atera_datetime(department_data.get('CreatedOn'))
+                    existing.synced_at = datetime.now()
+                else:
+                    department = Department(
+                        department_id=department_id,
+                        department_name=department_data.get('DepartmentName', ''),
+                        description=department_data.get('Description', ''),
+                        created_at=parse_atera_datetime(department_data.get('CreatedOn')),
+                        synced_at=datetime.now()
+                    )
+                    db.session.add(department)
+                count += 1
+            except Exception as e:
+                logger.error(f"Error processing department {department_id}: {str(e)}")
+                continue
+
+        db.session.commit()
+        logger.info(f"Successfully synced {count} departments")
+        return True, count, None
+    except Exception as e:
+        logger.error(f"Error syncing departments: {str(e)}")
+        db.session.rollback()
+        return False, 0, str(e)

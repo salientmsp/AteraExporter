@@ -272,6 +272,38 @@ class Expense(db.Model):
     created_at = db.Column(db.DateTime)
     synced_at = db.Column(db.DateTime, default=datetime.now)
 
+class HTTPDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    url = db.Column(db.String(500))
+    expected_response = db.Column(db.String(500))
+    monitoring_enabled = db.Column(db.Boolean, default=True)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class GenericDevice(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    device_id = db.Column(db.String(50), nullable=False, unique=True)
+    device_name = db.Column(db.String(200))
+    customer_id = db.Column(db.String(50))
+    customer_name = db.Column(db.String(200))
+    monitoring_enabled = db.Column(db.Boolean, default=True)
+    last_online = db.Column(db.DateTime)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
+class Department(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    department_id = db.Column(db.String(50), nullable=False, unique=True)
+    department_name = db.Column(db.String(200))
+    description = db.Column(db.Text)
+    created_at = db.Column(db.DateTime)
+    synced_at = db.Column(db.DateTime, default=datetime.now)
+
 class ExportLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     export_type = db.Column(db.String(50), nullable=False)  # tickets, customers, agents, etc.
@@ -1354,7 +1386,10 @@ def export_home():
         'tcp_devices': TCPDevice.query.count(),
         'knowledge_base': KnowledgeBase.query.count(),
         'products': Product.query.count(),
-        'expenses': Expense.query.count()
+        'expenses': Expense.query.count(),
+        'http_devices': HTTPDevice.query.count(),
+        'generic_devices': GenericDevice.query.count(),
+        'departments': Department.query.count()
     }
 
     # Get recent export logs
@@ -1369,7 +1404,8 @@ def sync_data(data_type):
     from data_sync import (sync_customers, sync_agents, sync_alerts,
                            sync_contacts, sync_contracts, sync_invoices, sync_tickets,
                            sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
-                           sync_products, sync_expenses)
+                           sync_products, sync_expenses, sync_http_devices,
+                           sync_generic_devices, sync_departments)
 
     # Get API key from settings
     api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
@@ -1402,6 +1438,12 @@ def sync_data(data_type):
             success, count, error = sync_products(db, Product, api_key)
         elif data_type == 'expenses':
             success, count, error = sync_expenses(db, Expense, api_key)
+        elif data_type == 'http_devices':
+            success, count, error = sync_http_devices(db, HTTPDevice, api_key)
+        elif data_type == 'generic_devices':
+            success, count, error = sync_generic_devices(db, GenericDevice, api_key)
+        elif data_type == 'departments':
+            success, count, error = sync_departments(db, Department, api_key)
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
@@ -1460,6 +1502,15 @@ def export_data(data_type, export_format):
             exclude_fields = ['id']
         elif data_type == 'expenses':
             data = Expense.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'http_devices':
+            data = HTTPDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'generic_devices':
+            data = GenericDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'departments':
+            data = Department.query.all()
             exclude_fields = ['id']
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
@@ -1536,6 +1587,12 @@ def view_data(data_type):
             data = Product.query.order_by(Product.synced_at.desc()).limit(100).all()
         elif data_type == 'expenses':
             data = Expense.query.order_by(Expense.synced_at.desc()).limit(100).all()
+        elif data_type == 'http_devices':
+            data = HTTPDevice.query.order_by(HTTPDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'generic_devices':
+            data = GenericDevice.query.order_by(GenericDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'departments':
+            data = Department.query.order_by(Department.synced_at.desc()).limit(100).all()
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
