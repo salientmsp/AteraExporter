@@ -17,11 +17,15 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-key-change-in-production')
 
-# Database configuration - use in-memory SQLite database
-# NOTE: All data will be lost when the container restarts
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+# Database configuration - use file-based SQLite database
+db_path = os.path.join(os.path.dirname(__file__), 'data', 'atera.db')
+app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-print("Using in-memory SQLite database - all data will be lost on restart")
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
+print(f"Using SQLite database at: {db_path}")
 
 # Initialize database
 db = SQLAlchemy(app)
