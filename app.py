@@ -1412,6 +1412,8 @@ def view_data(data_type):
             data = Contract.query.order_by(Contract.synced_at.desc()).limit(100).all()
         elif data_type == 'invoices':
             data = Invoice.query.order_by(Invoice.synced_at.desc()).limit(100).all()
+        elif data_type == 'tickets':
+            data = Ticket.query.order_by(Ticket.created_at.desc()).limit(100).all()
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))

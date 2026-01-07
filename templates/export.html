@@ -178,10 +178,10 @@
                 <h2 class="text-center mb-3">{{ counts.tickets }}</h2>
                 <p class="text-muted text-center">Records in database</p>
                 <div class="d-grid gap-2">
-                    <a href="{{ url_for('refresh_tickets_route') }}" class="btn btn-success">
+                    <a href="{{ url_for('sync_data', data_type='tickets') }}" class="btn btn-success">
                         Sync from Atera
                     </a>
-                    <a href="{{ url_for('tickets') }}" class="btn btn-info">
+                    <a href="{{ url_for('view_data', data_type='tickets') }}" class="btn btn-info">
                         View Data
                     </a>
                     <div class="btn-group">
