@@ -10,11 +10,6 @@ services:
       - "8000:8000"
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
-    volumes:
-      # Persist database
-      - ./data:/app/data
-      # Optional: Mount .env file
-      - ./.env:/app/.env:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/login', timeout=5)"]

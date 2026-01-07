@@ -77,42 +77,33 @@ You can deploy this application in two ways:
 Pull and run the latest image:
 
 ```bash
-# Create data directory with proper permissions
-mkdir -p data
-chmod 777 data  # Or: sudo chown 1000:1000 data
-
-# Pull and run
 docker pull ghcr.io/salientmsp/ateraexporter:latest
 
 docker run -d \
   --name atera-exporter \
   -p 8000:8000 \
-  -v $(pwd)/data:/app/data \
   -e SECRET_KEY=your-secret-key \
   ghcr.io/salientmsp/ateraexporter:latest
 ```
 
-**Important:** The container runs as a non-root user (UID 1000) for security. Ensure the `data` directory is writable by this user.
+**Note:** The application uses an in-memory SQLite database. All data (settings, schedules, synced data) will be lost when the container restarts. This is ideal for testing and temporary use.
 
 ### Building Your Own Docker Image
 
 ```bash
 docker build -t atera-exporter .
 
-# Create data directory
-mkdir -p data
-chmod 777 data
-
 # Run the container
-docker run -d -p 8000:8000 -v $(pwd)/data:/app/data atera-exporter
+docker run -d -p 8000:8000 atera-exporter
 ```
 
-### Docker Volumes
+### Docker Storage
 
-The application uses the following volume:
-- `/app/data` - Database storage (persist your data)
+**Database:** The application uses an in-memory SQLite database - no volume mounts required.
 
-**Note:** Exports are generated in-memory and downloaded directly to your browser, so no volume mount is needed for exports.
+**Exports:** Generated in-memory and downloaded directly to your browser.
+
+**Result:** Zero persistence, zero permission issues, maximum simplicity.
 
 ### Docker Environment Variables
 
@@ -142,11 +133,8 @@ docker-compose pull
 docker-compose up -d
 ```
 
-**Backup your data:**
-```bash
-# Backup database
-cp data/oncall.db data/oncall.db.backup
-```
+**Note on data persistence:**
+The application uses an in-memory database, so all data is lost on restart. If you need persistence, consider modifying `app.py` to use a persistent database or volume mount.
 
 ---
 
