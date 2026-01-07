@@ -8,6 +8,8 @@ services:
     container_name: atera-exporter
     ports:
       - "8000:8000"
+    volumes:
+      - ./data:/app/data
     environment:
       - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
     restart: unless-stopped
