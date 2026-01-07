@@ -5,7 +5,9 @@ Syncs data from Atera API to local database
 
 from datetime import datetime
 import logging
+import json
 from atera_api import AteraAPIClient, parse_atera_datetime, parse_atera_date
+from request_queue import RequestQueue
 
 logger = logging.getLogger(__name__)
 
@@ -1101,7 +1103,7 @@ def sync_account(db, Account, api_key):
 
 
 def sync_ticket_comments(db, TicketComment, Ticket, api_key):
-    """Sync all ticket comments from Atera API"""
+    """Sync all ticket comments from Atera API using concurrent requests"""
     try:
         client = AteraAPIClient(api_key)
 
@@ -1110,13 +1112,30 @@ def sync_ticket_comments(db, TicketComment, Ticket, api_key):
 
         # Get all tickets
         tickets = Ticket.query.all()
+        if not tickets:
+            logger.info("No tickets found, skipping comment sync")
+            return True, 0, None
+
         total_comments = 0
+        logger.info(f"Fetching comments for {len(tickets)} tickets using concurrent requests")
 
-        for ticket in tickets:
-            try:
-                comments_data = client.fetch_ticket_comments(ticket.ticket_id)
+        # Use RequestQueue for concurrent fetching
+        with RequestQueue(max_workers=5, max_requests_per_second=10) as queue:
+            # Prepare fetch tasks
+            fetch_tasks = [
+                (client.fetch_ticket_comments, (ticket.ticket_id,), {})
+                for ticket in tickets
+            ]
 
-                if comments_data:
+            # Execute all fetches concurrently
+            results = queue.execute_batch(fetch_tasks, show_progress=True)
+
+            # Process results and create comment records
+            for ticket, (success, comments_data) in zip(tickets, results):
+                if not success or not comments_data:
+                    continue
+
+                try:
                     for comment_data in comments_data:
                         comment = TicketComment(
                             ticket_id=ticket.ticket_id,
@@ -1132,9 +1151,9 @@ def sync_ticket_comments(db, TicketComment, Ticket, api_key):
                         )
                         db.session.add(comment)
                         total_comments += 1
-            except Exception as e:
-                logger.error(f"Error syncing comments for ticket {ticket.ticket_id}: {str(e)}")
-                continue
+                except Exception as e:
+                    logger.error(f"Error processing comments for ticket {ticket.ticket_id}: {str(e)}")
+                    continue
 
         db.session.commit()
         logger.info(f"Successfully synced {total_comments} ticket comments across {len(tickets)} tickets")
@@ -1147,7 +1166,7 @@ def sync_ticket_comments(db, TicketComment, Ticket, api_key):
 
 
 def sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key):
-    """Sync all ticket work hours from Atera API"""
+    """Sync all ticket work hours from Atera API using concurrent requests"""
     try:
         client = AteraAPIClient(api_key)
 
@@ -1156,13 +1175,30 @@ def sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key):
 
         # Get all tickets
         tickets = Ticket.query.all()
+        if not tickets:
+            logger.info("No tickets found, skipping work hours sync")
+            return True, 0, None
+
         total_hours = 0
+        logger.info(f"Fetching work hours for {len(tickets)} tickets using concurrent requests")
 
-        for ticket in tickets:
-            try:
-                workhours_data = client.fetch_ticket_workhours(ticket.ticket_id)
+        # Use RequestQueue for concurrent fetching
+        with RequestQueue(max_workers=5, max_requests_per_second=10) as queue:
+            # Prepare fetch tasks
+            fetch_tasks = [
+                (client.fetch_ticket_workhours, (ticket.ticket_id,), {})
+                for ticket in tickets
+            ]
 
-                if workhours_data:
+            # Execute all fetches concurrently
+            results = queue.execute_batch(fetch_tasks, show_progress=True)
+
+            # Process results and create work hour records
+            for ticket, (success, workhours_data) in zip(tickets, results):
+                if not success or not workhours_data:
+                    continue
+
+                try:
                     for workhour_data in workhours_data:
                         workhour = TicketWorkHour(
                             ticket_id=ticket.ticket_id,
@@ -1181,9 +1217,9 @@ def sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key):
                         )
                         db.session.add(workhour)
                         total_hours += 1
-            except Exception as e:
-                logger.error(f"Error syncing work hours for ticket {ticket.ticket_id}: {str(e)}")
-                continue
+                except Exception as e:
+                    logger.error(f"Error processing work hours for ticket {ticket.ticket_id}: {str(e)}")
+                    continue
 
         db.session.commit()
         logger.info(f"Successfully synced {total_hours} work hour records across {len(tickets)} tickets")
@@ -1196,7 +1232,7 @@ def sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key):
 
 
 def sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_key):
-    """Sync agent patch information from Atera API"""
+    """Sync agent patch information from Atera API using concurrent requests"""
     try:
         client = AteraAPIClient(api_key)
 
@@ -1206,15 +1242,41 @@ def sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_
 
         # Get all agents
         agents = Agent.query.all()
+        if not agents:
+            logger.info("No agents found, skipping patch sync")
+            return True, 0, None
+
         total_installed = 0
         total_available = 0
+        logger.info(f"Fetching patches for {len(agents)} agents using concurrent requests")
 
-        for agent in agents:
-            try:
-                # Fetch installed patches
-                installed_patches = client.fetch_agent_installed_patches(agent.device_guid)
-                if installed_patches:
-                    for patch_data in installed_patches:
+        # Use RequestQueue for concurrent fetching (2 requests per agent)
+        with RequestQueue(max_workers=5, max_requests_per_second=10) as queue:
+            # Prepare fetch tasks - both installed and available for each agent
+            installed_tasks = [
+                (client.fetch_agent_installed_patches, (agent.device_guid,), {})
+                for agent in agents
+            ]
+            available_tasks = [
+                (client.fetch_agent_available_patches, (agent.device_guid,), {})
+                for agent in agents
+            ]
+
+            # Execute installed patches fetch
+            logger.info(f"Fetching installed patches for {len(agents)} agents")
+            installed_results = queue.execute_batch(installed_tasks, show_progress=True)
+
+            # Execute available patches fetch
+            logger.info(f"Fetching available patches for {len(agents)} agents")
+            available_results = queue.execute_batch(available_tasks, show_progress=True)
+
+            # Process installed patches
+            for agent, (success, patches_data) in zip(agents, installed_results):
+                if not success or not patches_data:
+                    continue
+
+                try:
+                    for patch_data in patches_data:
                         patch = AgentInstalledPatch(
                             device_guid=agent.device_guid,
                             agent_id=str(agent.agent_id),
@@ -1226,11 +1288,17 @@ def sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_
                         )
                         db.session.add(patch)
                         total_installed += 1
+                except Exception as e:
+                    logger.error(f"Error processing installed patches for agent {agent.device_guid}: {str(e)}")
+                    continue
 
-                # Fetch available patches
-                available_patches = client.fetch_agent_available_patches(agent.device_guid)
-                if available_patches:
-                    for patch_data in available_patches:
+            # Process available patches
+            for agent, (success, patches_data) in zip(agents, available_results):
+                if not success or not patches_data:
+                    continue
+
+                try:
+                    for patch_data in patches_data:
                         patch = AgentAvailablePatch(
                             device_guid=agent.device_guid,
                             agent_id=str(agent.agent_id),
@@ -1242,10 +1310,9 @@ def sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_
                         )
                         db.session.add(patch)
                         total_available += 1
-
-            except Exception as e:
-                logger.error(f"Error syncing patches for agent {agent.device_guid}: {str(e)}")
-                continue
+                except Exception as e:
+                    logger.error(f"Error processing available patches for agent {agent.device_guid}: {str(e)}")
+                    continue
 
         db.session.commit()
         logger.info(f"Successfully synced {total_installed} installed patches and {total_available} available patches across {len(agents)} agents")
