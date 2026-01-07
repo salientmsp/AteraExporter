@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 import requests
 import json
 import pytz
+import sqlite3
 from apscheduler.schedulers.background import BackgroundScheduler
 from twilio.rest import Client
 from twilio.base.exceptions import TwilioRestException
@@ -24,11 +25,30 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     'pool_pre_ping': True,
     'pool_recycle': 300,
+    'connect_args': {
+        'check_same_thread': False,  # Allow multi-threading
+        'timeout': 30  # Increase timeout for database locks to 30 seconds
+    }
 }
 print(f"Using SQLite database at: {db_path}")
 
 # Initialize database
 db = SQLAlchemy(app)
+
+# Enable WAL mode for better concurrency
+def enable_wal_mode():
+    """Enable Write-Ahead Logging mode for SQLite to support concurrent writes"""
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.execute('PRAGMA journal_mode=WAL')
+        conn.execute('PRAGMA synchronous=NORMAL')  # Balance between safety and speed
+        conn.execute('PRAGMA busy_timeout=30000')  # 30 second timeout
+        conn.close()
+        print("SQLite WAL mode enabled for better concurrency")
+    except Exception as e:
+        print(f"Warning: Could not enable WAL mode: {e}")
+
+enable_wal_mode()
 
 # Initialize login manager
 login_manager = LoginManager()

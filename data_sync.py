@@ -1130,30 +1130,36 @@ def sync_ticket_comments(db, TicketComment, Ticket, api_key):
             # Execute all fetches concurrently
             results = queue.execute_batch(fetch_tasks, show_progress=True)
 
-            # Process results and create comment records
-            for ticket, (success, comments_data) in zip(tickets, results):
-                if not success or not comments_data:
-                    continue
+        # Process results and create comment records (after concurrent fetching completes)
+        comments_to_add = []
+        for ticket, (success, comments_data) in zip(tickets, results):
+            if not success or not comments_data:
+                continue
 
-                try:
-                    for comment_data in comments_data:
-                        comment = TicketComment(
-                            ticket_id=ticket.ticket_id,
-                            comment_date=parse_atera_datetime(comment_data.get('Date')),
-                            comment_text=comment_data.get('Comment', ''),
-                            end_user_id=str(comment_data.get('EndUserID', '')),
-                            technician_contact_id=str(comment_data.get('TechnicianContactID', '')),
-                            email=comment_data.get('Email', ''),
-                            first_name=comment_data.get('FirstName', ''),
-                            last_name=comment_data.get('LastName', ''),
-                            is_internal=comment_data.get('IsInternal', False),
-                            synced_at=datetime.now()
-                        )
-                        db.session.add(comment)
-                        total_comments += 1
-                except Exception as e:
-                    logger.error(f"Error processing comments for ticket {ticket.ticket_id}: {str(e)}")
-                    continue
+            try:
+                for comment_data in comments_data:
+                    comment = TicketComment(
+                        ticket_id=ticket.ticket_id,
+                        comment_date=parse_atera_datetime(comment_data.get('Date')),
+                        comment_text=comment_data.get('Comment', ''),
+                        end_user_id=str(comment_data.get('EndUserID', '')),
+                        technician_contact_id=str(comment_data.get('TechnicianContactID', '')),
+                        email=comment_data.get('Email', ''),
+                        first_name=comment_data.get('FirstName', ''),
+                        last_name=comment_data.get('LastName', ''),
+                        is_internal=comment_data.get('IsInternal', False),
+                        synced_at=datetime.now()
+                    )
+                    comments_to_add.append(comment)
+                    total_comments += 1
+            except Exception as e:
+                logger.error(f"Error processing comments for ticket {ticket.ticket_id}: {str(e)}")
+                continue
+
+        # Bulk insert all comments in a single transaction with autoflush disabled
+        if comments_to_add:
+            with db.session.no_autoflush:
+                db.session.bulk_save_objects(comments_to_add)
 
         db.session.commit()
         logger.info(f"Successfully synced {total_comments} ticket comments across {len(tickets)} tickets")
@@ -1193,33 +1199,39 @@ def sync_ticket_workhours(db, TicketWorkHour, Ticket, api_key):
             # Execute all fetches concurrently
             results = queue.execute_batch(fetch_tasks, show_progress=True)
 
-            # Process results and create work hour records
-            for ticket, (success, workhours_data) in zip(tickets, results):
-                if not success or not workhours_data:
-                    continue
+        # Process results and create work hour records (after concurrent fetching completes)
+        workhours_to_add = []
+        for ticket, (success, workhours_data) in zip(tickets, results):
+            if not success or not workhours_data:
+                continue
 
-                try:
-                    for workhour_data in workhours_data:
-                        workhour = TicketWorkHour(
-                            ticket_id=ticket.ticket_id,
-                            work_hours_id=str(workhour_data.get('WorkHoursID', '')),
-                            start_work_hour=parse_atera_datetime(workhour_data.get('StartWorkHour')),
-                            end_work_hour=parse_atera_datetime(workhour_data.get('EndWorkHour')),
-                            technician_contact_id=str(workhour_data.get('TechnicianContactID', '')),
-                            billable=workhour_data.get('Billiable', False),  # Note: API has typo 'Billiable'
-                            on_customer_site=workhour_data.get('OnCustomerSite', False),
-                            description=workhour_data.get('Description', ''),
-                            technician_full_name=workhour_data.get('TechnicianFullName', ''),
-                            technician_email=workhour_data.get('TechnicianEmail', ''),
-                            rate_id=workhour_data.get('RateID'),
-                            rate_amount=workhour_data.get('RateAmount'),
-                            synced_at=datetime.now()
-                        )
-                        db.session.add(workhour)
-                        total_hours += 1
-                except Exception as e:
-                    logger.error(f"Error processing work hours for ticket {ticket.ticket_id}: {str(e)}")
-                    continue
+            try:
+                for workhour_data in workhours_data:
+                    workhour = TicketWorkHour(
+                        ticket_id=ticket.ticket_id,
+                        work_hours_id=str(workhour_data.get('WorkHoursID', '')),
+                        start_work_hour=parse_atera_datetime(workhour_data.get('StartWorkHour')),
+                        end_work_hour=parse_atera_datetime(workhour_data.get('EndWorkHour')),
+                        technician_contact_id=str(workhour_data.get('TechnicianContactID', '')),
+                        billable=workhour_data.get('Billiable', False),  # Note: API has typo 'Billiable'
+                        on_customer_site=workhour_data.get('OnCustomerSite', False),
+                        description=workhour_data.get('Description', ''),
+                        technician_full_name=workhour_data.get('TechnicianFullName', ''),
+                        technician_email=workhour_data.get('TechnicianEmail', ''),
+                        rate_id=workhour_data.get('RateID'),
+                        rate_amount=workhour_data.get('RateAmount'),
+                        synced_at=datetime.now()
+                    )
+                    workhours_to_add.append(workhour)
+                    total_hours += 1
+            except Exception as e:
+                logger.error(f"Error processing work hours for ticket {ticket.ticket_id}: {str(e)}")
+                continue
+
+        # Bulk insert all work hours in a single transaction with autoflush disabled
+        if workhours_to_add:
+            with db.session.no_autoflush:
+                db.session.bulk_save_objects(workhours_to_add)
 
         db.session.commit()
         logger.info(f"Successfully synced {total_hours} work hour records across {len(tickets)} tickets")
@@ -1270,49 +1282,58 @@ def sync_agent_patches(db, AgentInstalledPatch, AgentAvailablePatch, Agent, api_
             logger.info(f"Fetching available patches for {len(agents)} agents")
             available_results = queue.execute_batch(available_tasks, show_progress=True)
 
-            # Process installed patches
-            for agent, (success, patches_data) in zip(agents, installed_results):
-                if not success or not patches_data:
-                    continue
+        # Process installed patches (after concurrent fetching completes)
+        installed_patches_to_add = []
+        for agent, (success, patches_data) in zip(agents, installed_results):
+            if not success or not patches_data:
+                continue
 
-                try:
-                    for patch_data in patches_data:
-                        patch = AgentInstalledPatch(
-                            device_guid=agent.device_guid,
-                            agent_id=str(agent.agent_id),
-                            name=patch_data.get('Name', ''),
-                            patch_class=patch_data.get('Class', ''),
-                            kb_id=patch_data.get('KBId', ''),
-                            install_date=parse_atera_datetime(patch_data.get('InstallDate')),
-                            synced_at=datetime.now()
-                        )
-                        db.session.add(patch)
-                        total_installed += 1
-                except Exception as e:
-                    logger.error(f"Error processing installed patches for agent {agent.device_guid}: {str(e)}")
-                    continue
+            try:
+                for patch_data in patches_data:
+                    patch = AgentInstalledPatch(
+                        device_guid=agent.device_guid,
+                        agent_id=str(agent.agent_id),
+                        name=patch_data.get('Name', ''),
+                        patch_class=patch_data.get('Class', ''),
+                        kb_id=patch_data.get('KBId', ''),
+                        install_date=parse_atera_datetime(patch_data.get('InstallDate')),
+                        synced_at=datetime.now()
+                    )
+                    installed_patches_to_add.append(patch)
+                    total_installed += 1
+            except Exception as e:
+                logger.error(f"Error processing installed patches for agent {agent.device_guid}: {str(e)}")
+                continue
 
-            # Process available patches
-            for agent, (success, patches_data) in zip(agents, available_results):
-                if not success or not patches_data:
-                    continue
+        # Process available patches (after concurrent fetching completes)
+        available_patches_to_add = []
+        for agent, (success, patches_data) in zip(agents, available_results):
+            if not success or not patches_data:
+                continue
 
-                try:
-                    for patch_data in patches_data:
-                        patch = AgentAvailablePatch(
-                            device_guid=agent.device_guid,
-                            agent_id=str(agent.agent_id),
-                            name=patch_data.get('Name', ''),
-                            patch_class=patch_data.get('Class', ''),
-                            kb_id=patch_data.get('KBId', ''),
-                            status=patch_data.get('Status', ''),
-                            synced_at=datetime.now()
-                        )
-                        db.session.add(patch)
-                        total_available += 1
-                except Exception as e:
-                    logger.error(f"Error processing available patches for agent {agent.device_guid}: {str(e)}")
-                    continue
+            try:
+                for patch_data in patches_data:
+                    patch = AgentAvailablePatch(
+                        device_guid=agent.device_guid,
+                        agent_id=str(agent.agent_id),
+                        name=patch_data.get('Name', ''),
+                        patch_class=patch_data.get('Class', ''),
+                        kb_id=patch_data.get('KBId', ''),
+                        status=patch_data.get('Status', ''),
+                        synced_at=datetime.now()
+                    )
+                    available_patches_to_add.append(patch)
+                    total_available += 1
+            except Exception as e:
+                logger.error(f"Error processing available patches for agent {agent.device_guid}: {str(e)}")
+                continue
+
+        # Bulk insert all patches in a single transaction with autoflush disabled
+        with db.session.no_autoflush:
+            if installed_patches_to_add:
+                db.session.bulk_save_objects(installed_patches_to_add)
+            if available_patches_to_add:
+                db.session.bulk_save_objects(available_patches_to_add)
 
         db.session.commit()
         logger.info(f"Successfully synced {total_installed} installed patches and {total_available} available patches across {len(agents)} agents")
