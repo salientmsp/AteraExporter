@@ -228,10 +228,23 @@ def sync_contacts(db, Contact, api_key):
             return False, 0, "Failed to fetch contacts from Atera API"
 
         logger.info(f"Fetched {len(contacts_data)} contacts from Atera API")
+
+        # Log first contact structure for debugging
+        if contacts_data and len(contacts_data) > 0:
+            logger.debug(f"First contact structure: {contacts_data[0]}")
+
         count = 0
+        skipped = 0
         for contact_data in contacts_data:
             try:
-                contact_id = str(contact_data.get('ContactID'))
+                # Skip contacts without a valid ContactID
+                raw_contact_id = contact_data.get('ContactID')
+                if not raw_contact_id:
+                    logger.warning(f"Skipping contact without ContactID: {contact_data.get('Email', 'unknown')}")
+                    skipped += 1
+                    continue
+
+                contact_id = str(raw_contact_id)
 
                 existing = Contact.query.filter_by(contact_id=contact_id).first()
 
@@ -269,13 +282,15 @@ def sync_contacts(db, Contact, api_key):
                 count += 1
 
             except Exception as e:
-                logger.error(f"Error processing contact {contact_id}: {str(e)}", exc_info=True)
+                contact_identifier = contact_data.get('ContactID', contact_data.get('Email', 'unknown'))
+                logger.error(f"Error processing contact {contact_identifier}: {str(e)}", exc_info=True)
                 # Log the problematic contact data for debugging
                 logger.error(f"Problematic contact data: {contact_data}")
+                skipped += 1
                 continue
 
         db.session.commit()
-        logger.info(f"Successfully synced {count} contacts")
+        logger.info(f"Successfully synced {count} contacts (skipped {skipped} contacts without IDs)")
         return True, count, None
 
     except Exception as e:
