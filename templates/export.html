@@ -401,6 +401,162 @@
             </div>
         </div>
     </div>
+
+    <!-- Account -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="card-title mb-0">Account Information</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.account }}</h2>
+                <p class="text-muted text-center">Account record</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='account') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='account') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='account', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='account', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='account', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket Comments -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-info text-white">
+                <h5 class="card-title mb-0">Ticket Comments</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.ticket_comments }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='ticket_comments') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='ticket_comments') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='ticket_comments', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='ticket_comments', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='ticket_comments', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Ticket Work Hours -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-warning text-dark">
+                <h5 class="card-title mb-0">Ticket Work Hours</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.ticket_workhours }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='ticket_workhours') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='ticket_workhours') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='ticket_workhours', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='ticket_workhours', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='ticket_workhours', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Installed Patches -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-success text-white">
+                <h5 class="card-title mb-0">Agent Installed Patches</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.agent_installed_patches }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='agent_patches') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='agent_installed_patches') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='agent_installed_patches', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='agent_installed_patches', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='agent_installed_patches', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agent Available Patches -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-danger text-white">
+                <h5 class="card-title mb-0">Agent Available Patches</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.agent_available_patches }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='agent_patches') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='agent_available_patches') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='agent_available_patches', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='agent_available_patches', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='agent_available_patches', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Field Definitions -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-dark text-white">
+                <h5 class="card-title mb-0">Custom Field Definitions</h5>
+            </div>
+            <div class="card-body">
+                <h2 class="text-center mb-3">{{ counts.custom_field_definitions }}</h2>
+                <p class="text-muted text-center">Records in database</p>
+                <div class="d-grid gap-2">
+                    <a href="{{ url_for('sync_data', data_type='custom_field_definitions') }}" class="btn btn-success">
+                        Sync from Atera
+                    </a>
+                    <a href="{{ url_for('view_data', data_type='custom_field_definitions') }}" class="btn btn-info">
+                        View Data
+                    </a>
+                    <div class="btn-group">
+                        <a href="{{ url_for('export_data', data_type='custom_field_definitions', export_format='csv') }}" class="btn btn-outline-primary btn-sm">CSV</a>
+                        <a href="{{ url_for('export_data', data_type='custom_field_definitions', export_format='json') }}" class="btn btn-outline-primary btn-sm">JSON</a>
+                        <a href="{{ url_for('export_data', data_type='custom_field_definitions', export_format='excel') }}" class="btn btn-outline-primary btn-sm">Excel</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Bulk Actions -->
