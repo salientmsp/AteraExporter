@@ -1349,7 +1349,12 @@ def export_home():
         'alerts': Alert.query.count(),
         'contacts': Contact.query.count(),
         'contracts': Contract.query.count(),
-        'invoices': Invoice.query.count()
+        'invoices': Invoice.query.count(),
+        'snmp_devices': SNMPDevice.query.count(),
+        'tcp_devices': TCPDevice.query.count(),
+        'knowledge_base': KnowledgeBase.query.count(),
+        'products': Product.query.count(),
+        'expenses': Expense.query.count()
     }
 
     # Get recent export logs
@@ -1362,7 +1367,9 @@ def export_home():
 def sync_data(data_type):
     """Sync data from Atera API to database"""
     from data_sync import (sync_customers, sync_agents, sync_alerts,
-                           sync_contacts, sync_contracts, sync_invoices, sync_tickets)
+                           sync_contacts, sync_contracts, sync_invoices, sync_tickets,
+                           sync_snmp_devices, sync_tcp_devices, sync_knowledge_base,
+                           sync_products, sync_expenses)
 
     # Get API key from settings
     api_key = get_setting('atera_api_key', os.getenv('ATERA_API_KEY', ''))
@@ -1385,6 +1392,16 @@ def sync_data(data_type):
             success, count, error = sync_invoices(db, Invoice, api_key)
         elif data_type == 'tickets':
             success, count, error = sync_tickets(db, Ticket, api_key)
+        elif data_type == 'snmp_devices':
+            success, count, error = sync_snmp_devices(db, SNMPDevice, api_key)
+        elif data_type == 'tcp_devices':
+            success, count, error = sync_tcp_devices(db, TCPDevice, api_key)
+        elif data_type == 'knowledge_base':
+            success, count, error = sync_knowledge_base(db, KnowledgeBase, api_key)
+        elif data_type == 'products':
+            success, count, error = sync_products(db, Product, api_key)
+        elif data_type == 'expenses':
+            success, count, error = sync_expenses(db, Expense, api_key)
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
@@ -1428,6 +1445,21 @@ def export_data(data_type, export_format):
             exclude_fields = ['id']
         elif data_type == 'invoices':
             data = Invoice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'snmp_devices':
+            data = SNMPDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'tcp_devices':
+            data = TCPDevice.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'knowledge_base':
+            data = KnowledgeBase.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'products':
+            data = Product.query.all()
+            exclude_fields = ['id']
+        elif data_type == 'expenses':
+            data = Expense.query.all()
             exclude_fields = ['id']
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
@@ -1494,6 +1526,16 @@ def view_data(data_type):
             data = Invoice.query.order_by(Invoice.synced_at.desc()).limit(100).all()
         elif data_type == 'tickets':
             data = Ticket.query.order_by(Ticket.created_at.desc()).limit(100).all()
+        elif data_type == 'snmp_devices':
+            data = SNMPDevice.query.order_by(SNMPDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'tcp_devices':
+            data = TCPDevice.query.order_by(TCPDevice.synced_at.desc()).limit(100).all()
+        elif data_type == 'knowledge_base':
+            data = KnowledgeBase.query.order_by(KnowledgeBase.synced_at.desc()).limit(100).all()
+        elif data_type == 'products':
+            data = Product.query.order_by(Product.synced_at.desc()).limit(100).all()
+        elif data_type == 'expenses':
+            data = Expense.query.order_by(Expense.synced_at.desc()).limit(100).all()
         else:
             flash(f'Unknown data type: {data_type}', 'danger')
             return redirect(url_for('export_home'))
